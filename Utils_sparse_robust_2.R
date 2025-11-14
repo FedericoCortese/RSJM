@@ -437,7 +437,7 @@ robust_sparse_jump <- function(Y,
         # 9) update W via WCD + exp
         
         Spk <- WCD(s[sel_idx], as.matrix(Y_search 
-                                         #* v[sel_idx]
+                                         * v[sel_idx]
         ), K)
         
         
