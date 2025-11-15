@@ -127,7 +127,7 @@ end_full <- Sys.time()
 
 elapsed_full=end_full-start_full
 
-save(res_list_K3_OUT,elapsed_full, hp,file='simstud_SRJM_K3_OUT.Rdata')
+save(res_list_K3_OUT,elapsed_full, hp,file='simstud_SRJM_K3_OUT(2).Rdata')
 
 
 start_full <- Sys.time()
@@ -230,7 +230,7 @@ end_full <- Sys.time()
 
 elapsed_full=end_full-start_full
 
-save(res_list_K4_noOUT,elapsed_full, hp,file='simstud_SRJM_K4_OUT.Rdata')
+save(res_list_K4_OUT,elapsed_full, hp,file='simstud_SRJM_K4_OUT(2).Rdata')
 
 
 # Results -----------------------------------------------------------------
