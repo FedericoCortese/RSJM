@@ -233,6 +233,79 @@ elapsed_full=end_full-start_full
 save(res_list_K4_OUT,elapsed_full, hp,file='simstud_SRJM_K4_OUT(2).Rdata')
 
 
+# heatmap - Truth ---------------------------------------------------------
+
+
+# K=3
+# install.packages("ggplot2")
+library(ggplot2)
+library(reshape2)
+
+# --- pattern: rows are the three states, columns 1..10 ---
+row1 <- c("W","W","O","O","O","W","W","W","W","W")   # "WWOOOWWWW..."
+row2 <- c("W","O","W","O","O","W","W","W","W","W")   # "WOWOOWWWW..."
+row3 <- c("O","W","W","O","O","W","W","W","W","W")   # "OWWOOWWWW..."
+
+mat  <- rbind(row1,row2,row3)
+df <- melt(mat)
+names(df) <- c("State","Variable","val")
+df$State <- factor(df$State, levels=rev(unique(df$State)))  # top-to-bottom
+df$Variable <- as.integer(df$Variable)
+
+# colors: orange for O, white for W
+fill_map <- c(W = "white", O = "#f39c12")
+
+p <- ggplot(df, aes(x = Variable, y = State, fill = val)) +
+  geom_tile(color = "grey90", size = 0.3) +
+  scale_fill_manual(values = fill_map, guide = "none") +
+  coord_fixed() +
+  scale_x_continuous(breaks = 1:10) +
+  scale_y_discrete(labels = c("1","2","3")) +
+  theme_minimal(base_size = 12) +
+  theme(panel.grid = element_blank(),
+        axis.ticks = element_blank(),
+        axis.title = element_text(size = 12),
+        axis.text = element_text(size = 10))
+
+# add "..." text inside 10th column + axis labels
+p + geom_text(data = subset(df, Variable == 10),
+              aes(label = "..."), size = 4) +
+  labs(x = "Variable", y = "State")
+
+# K=4
+# --- pattern: rows are the four states, columns 1..10 ---
+row1 <- c("W","W","W","O","O","O","W","W","W","W")   # WWWOOOWWWW...
+row2 <- c("W","W","O","W","O","O","W","W","W","W")   # WWOWOOWWWW...
+row3 <- c("W","O","W","W","O","O","W","W","W","W")   # WOWWOOWWWW...
+row4 <- c("O","W","W","W","O","O","W","W","W","W")   # OWWW OOWWWW...
+
+mat <- rbind(row1,row2,row3,row4)
+df <- melt(mat)
+names(df) <- c("State","Variable","val")
+df$State <- factor(df$State, levels=rev(unique(df$State)))  # top to bottom
+df$Variable <- as.integer(df$Variable)
+
+# colors
+fill_map <- c(W = "white", O = "#f39c12")
+
+p <- ggplot(df, aes(x = Variable, y = State, fill = val)) +
+  geom_tile(color = "grey90", size = 0.3) +
+  scale_fill_manual(values = fill_map, guide = "none") +
+  coord_fixed() +
+  scale_x_continuous(breaks = 1:10) +
+  scale_y_discrete(labels = 1:4) +
+  theme_minimal(base_size = 12) +
+  theme(panel.grid = element_blank(),
+        axis.ticks = element_blank(),
+        axis.title = element_text(size = 12),
+        axis.text = element_text(size = 10))
+
+# add "..." text in 10th column and axis labels
+p + geom_text(data = subset(df, Variable == 10),
+              aes(label = "..."), size = 4) +
+  labs(x = "Variable", y = "State")
+
+
 # Results -----------------------------------------------------------------
 
 library(scales)
@@ -241,7 +314,7 @@ source("Utils_sparse_robust_2.R")
 
 # K=3 ---------------------------------------------------------------------
 
-load("D:/CNR/OneDrive - CNR/simres_robusts_parse/simstud_SRJM_K3_OUT.Rdata")
+load("D:/CNR/OneDrive - CNR/simres_robusts_parse/simstud_SRJM_K3_OUT(2).Rdata")
 
 ## Caso 1: perc_out = 0.05 e qt = 0.95
 idx_95 <- which(hp$perc_out == 0.05 & hp$qt == 0.95)
@@ -281,7 +354,7 @@ out_v_99$grid_plot
 
 # K=4 ---------------------------------------------------------------------
 
-load("D:/CNR/OneDrive - CNR/simres_robusts_parse/simstud_SRJM_K4_OUT.Rdata")
+load("D:/CNR/OneDrive - CNR/simres_robusts_parse/simstud_SRJM_K4_OUT(2).Rdata")
 
 ## Caso 1: perc_out = 0.05 e qt = 0.95
 idx_95 <- which(hp$perc_out == 0.05 & hp$qt == 0.95)
@@ -315,4 +388,3 @@ out_v_95$grid_plot
 out_v_99 <- analyze_v_truth_boxgrid(res_list_99, hp_99)
 out_v_99$grid_plot
 
-save(res_list_K4_OUT,elapsed_full, hp,file='simstud_SRJM_K4_OUT.Rdata')
