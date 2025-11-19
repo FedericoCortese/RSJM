@@ -215,6 +215,95 @@ elapsed_full=end_full-start_full
 save(res_list_K4_noOUT,elapsed_full, hp,file='simstud_SRJM_K4_noOUT.Rdata')
 
 
+# heatmap - Truth ---------------------------------------------------------
+
+# ---- Libraries ----
+# install.packages(c("ggplot2","reshape2"))
+library(ggplot2)
+library(reshape2)
+
+# ============== K = 3 ==============
+
+# pattern: rows are the three states, columns 1..10
+row1 <- c("W","W","O","O","O","W","W","W","W","W")   # "WWOOOWWWW..."
+row2 <- c("W","O","W","O","O","W","W","W","W","W")   # "WOWOOWWWW..."
+row3 <- c("O","W","W","O","O","W","W","W","W","W")   # "OWWOOWWWW..."
+
+mat  <- rbind(row1,row2,row3)
+df <- melt(mat)
+names(df) <- c("State","Variable","val")
+df$State <- factor(df$State, levels = rev(unique(df$State)))  # top-to-bottom
+df$Variable <- as.integer(df$Variable)
+
+# colors: orange for O, white for W
+fill_map <- c(W = "white", O = "#f39c12")
+
+p3 <- ggplot(df, aes(x = Variable, y = State, fill = val)) +
+  geom_tile(color = "grey90", size = 0.3) +
+  scale_fill_manual(values = fill_map, guide = "none") +
+  coord_fixed() +
+  # X labels: 1..9 then blank for the 10th tick
+  scale_x_continuous(breaks = 1:10, labels = c(1:9, " ")) +
+  scale_y_discrete(labels = c("1","2","3")) +
+  theme_minimal(base_size = 12) +
+  theme(
+    panel.grid = element_blank(),
+    axis.ticks = element_blank(),
+    axis.title = element_text(size = 12),
+    axis.text = element_text(size = 10)
+  ) +
+  labs(x = "Variable", y = "State")
+
+# add "..." text inside the 10th column tiles
+p3 <- p3 + geom_text(
+  data = subset(df, Variable == 10),
+  aes(label = "..."),
+  size = 4
+)
+
+p3
+
+
+# ============== K = 4 ==============
+
+# pattern: rows are the four states, columns 1..10
+row1 <- c("W","W","W","O","O","O","W","W","W","W")   # "WWWOOOWWWW..."
+row2 <- c("W","W","O","W","O","O","W","W","W","W")   # "WWOWOOWWWW..."
+row3 <- c("W","O","W","W","O","O","W","W","W","W")   # "WOWWOOWWWW..."
+row4 <- c("O","W","W","W","O","O","W","W","W","W")   # "OWWWOOWWWW..."
+
+mat <- rbind(row1,row2,row3,row4)
+df4 <- melt(mat)
+names(df4) <- c("State","Variable","val")
+df4$State <- factor(df4$State, levels = rev(unique(df4$State)))  # top-to-bottom
+df4$Variable <- as.integer(df4$Variable)
+
+p4 <- ggplot(df4, aes(x = Variable, y = State, fill = val)) +
+  geom_tile(color = "grey90", size = 0.3) +
+  scale_fill_manual(values = fill_map, guide = "none") +
+  coord_fixed() +
+  # X labels: 1..9 then blank for the 10th tick
+  scale_x_continuous(breaks = 1:10, labels = c(1:9, " ")) +
+  scale_y_discrete(labels = 1:4) +
+  theme_minimal(base_size = 12) +
+  theme(
+    panel.grid = element_blank(),
+    axis.ticks = element_blank(),
+    axis.title = element_text(size = 12),
+    axis.text = element_text(size = 10)
+  ) +
+  labs(x = "Variable", y = "State")
+
+# add "..." text inside the 10th column tiles
+p4 <- p4 + geom_text(
+  data = subset(df4, Variable == 10),
+  aes(label = "..."),
+  size = 4
+)
+
+p4
+
+
 # Results -----------------------------------------------------------------
 source("Utils_sparse_robust_2.R")
 
@@ -246,11 +335,13 @@ res_K3_P10$heatmap_plot
 
 # P=25 
 res_K3_P25=analyze_results(res_list_K3_noOUT, hp, P=25, K=3,
-                           label_size = 2,
+                           #label_size = 2,
                            ylim_BAC = c(0.25, 1), 
                            show_legend = F,
-                           facet_font_size = 12,
-                           x_axis_font_size = 10)
+                           facet_font_size = 12
+                           # ,
+                           # x_axis_font_size = 10
+                           )
 
 res_K3_P25$best_row
 res_K3_P25$time_summary
@@ -291,11 +382,14 @@ res_K4_P10$time_summary
 #P=25
 
 res_K4_P25=analyze_results(res_list_K4_noOUT, hp, P=25, K=4,
-                           label_size = 2,
+                           #label_size = 2,
                            ylim_BAC = c(0.25, 1), 
                            show_legend = F,
-                           facet_font_size = 12,
-                           x_axis_font_size = 10)
+                           facet_font_size = 12
+                           # ,
+                           # x_axis_font_size = 10
+                           # 
+                           )
 
 
 res_K4_P25$best_row

@@ -1332,21 +1332,60 @@ analyze_results <- function(res_list, hp, P, K,
   lab_zeta <- labeller(zeta0 = function(x) paste0("\u03B6", "0 = ", x))
   W_sub <- dplyr::filter(W_long, lambda == best_row$lambda)
   
-  min_w <- round(min(W_sub$weight, na.rm = TRUE), 2)
-  max_w <- round(max(W_sub$weight, na.rm = TRUE), 2)
+  # Se P > 10, comprimiamo a 10 colonne e usiamo la penultima per colorare la 10ª
+  if (P > 10) {
+    P_curr <- max(W_sub$variable, na.rm = TRUE)
+    
+    # Dati delle prime 9 variabili
+    W_keep <- dplyr::filter(W_sub, variable <= 9)
+    
+    # Dati della penultima variabile (per colore della colonna 10)
+    W_penult <- dplyr::filter(W_sub, variable == (P_curr - 1)) %>%
+      dplyr::mutate(variable = 10L) %>%      # nuova colonna 10
+      dplyr::mutate(lbl = "...")             # etichetta "..." nella 10ª
+    
+    # Etichette numeriche per le prime 9
+    W_keep <- W_keep %>%
+      dplyr::mutate(lbl = sprintf("%.2f", weight))
+    
+    # Unisco e fisso l'ordine 1..10
+    W_plot <- dplyr::bind_rows(W_keep, W_penult) %>%
+      dplyr::mutate(variable = factor(variable, levels = 1:10),
+                    state    = factor(state))
+    
+  } else {
+    # Caso P <= 10: tutto come prima (etichette numeriche ovunque)
+    W_plot <- W_sub %>%
+      dplyr::mutate(
+        lbl      = sprintf("%.2f", weight),
+        variable = factor(variable, levels = sort(unique(variable))),
+        state    = factor(state)
+      )
+  }
   
-  heatmap_plot <- ggplot(W_sub, aes(x = factor(variable), y = factor(state), fill = weight)) +
+  # Range per la scala dei colori
+  min_w <- round(min(W_plot$weight, na.rm = TRUE), 2)
+  max_w <- round(max(W_plot$weight, na.rm = TRUE), 2)
+  
+  # Etichette sull'asse x
+  if (P > 10) {
+    x_labels <- c(1:9, " ")
+  } else {
+    x_labels <- levels(W_plot$variable)
+  }
+  
+  heatmap_plot <- ggplot(W_plot, aes(x = variable, y = state, fill = weight)) +
     geom_tile() +
-    geom_text(aes(label = sprintf("%.2f", weight)),
-              color = "black", size = label_size) +
+    geom_text(aes(label = lbl), color = "black", size = label_size) +
     facet_wrap(~ zeta0, labeller = lab_zeta) +
+    scale_x_discrete(labels = x_labels) +  # <-- qui aggiungiamo "..." sull’asse x
     scale_fill_gradientn(
       colours = c("white", "yellow", "orange", "red2"),
-      values = scales::rescale(c(min_w, 0.05, 0.10, max_w)),
-      limits = c(min_w, max_w),
-      breaks = c(min_w, 0.05, 0.10, max_w),
-      labels = scales::number_format(accuracy = 0.02),
-      guide = if (show_legend) "colourbar" else "none"
+      values  = scales::rescale(c(min_w, 0.05, 0.10, max_w)),
+      limits  = c(min_w, max_w),
+      breaks  = c(min_w, 0.05, 0.10, max_w),
+      labels  = scales::number_format(accuracy = 0.02),
+      guide   = if (show_legend) "colourbar" else "none"
     ) +
     labs(
       x = "Variable",
@@ -1362,6 +1401,7 @@ analyze_results <- function(res_list, hp, P, K,
       axis.text.y  = element_text(size = 13)
     )
   
+  
   # --- Return outputs ---
   list(
     summary_df   = summary_df,
@@ -1372,6 +1412,7 @@ analyze_results <- function(res_list, hp, P, K,
     time_summary = time_summary
   )
 }
+
 
 analyze_v_truth_boxgrid <- function(res_list, hp) {
   
