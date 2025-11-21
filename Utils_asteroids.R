@@ -161,19 +161,38 @@ compute_feat <- function(x,
   # pull out the vector
   v <- x[[var_name]]
   
-  # 1) first difference
-  d  <- c(NA, diff(v))
+  # 1) first ANGULAR difference
+  # d  <- c(NA, diff(v))
+  d <- c(NA, atan2(sin(diff(v)), cos(diff(v))))
   x[[paste0("d", var_name)]] <- d
   
   # 2) rolling SD of the original and the diff
   if(sd_flag){
-    x[[paste0("sd_",   var_name)]] <- rollapply(v, l, sd, fill = NA)
-    x[[paste0("sd_d",  var_name)]] <- rollapply(d, l, sd, fill = NA)
+    #x[[paste0("sd_",   var_name)]] <- rollapply(v, l, sd, fill = NA)
+    #x[[paste0("sd_d",  var_name)]] <- rollapply(d, l, sd, fill = NA)
+    x[[paste0("sd_", var_name)]] <- rollapply(
+      v, l,
+      function(a) {
+        C <- mean(cos(a), na.rm = TRUE)
+        S <- mean(sin(a), na.rm = TRUE)
+        R <- sqrt(C^2 + S^2)
+        sqrt(-2 * log(R))  # circular SD
+      },
+      fill = NA
+    )
   }
   
-  # 3) optional moving average of the original
+  # 3) optional moving ANGULAR average of the original
+  # if (ma_flag) {
+  #   x[[paste0("ma_",  var_name)]] <- rollapply(v, l, mean, fill = NA)
+  # }
   if (ma_flag) {
-    x[[paste0("ma_",  var_name)]] <- rollapply(v, l, mean, fill = NA)
+    x[[paste0("ma_", var_name)]] <- rollapply(
+      v, l,
+      function(a) atan2(mean(sin(a), na.rm = TRUE),
+                        mean(cos(a), na.rm = TRUE)),
+      fill = NA
+    )
   }
   
   matched_cols <- grepl(var_name, names(x))

@@ -42,14 +42,14 @@ res_list_K3_noOUT <- mclapply(seq_len(nrow(hp)), function(i) {
     P <- hp$P[i]
     
     simDat <- sim_data_stud_t(seed=seed,
-                                       TT=TT,
-                                       P=P,
-                                       Pcat=NULL,
-                                       Ktrue=K,
-                                       mu=3,
-                                       rho=0,
-                                       nu=10,
-                                       pers=.95)
+                              TT=TT,
+                              P=P,
+                              Pcat=NULL,
+                              Ktrue=K,
+                              mu=3,
+                              rho=0,
+                              nu=10,
+                              pers=.95)
     
     simDat_sparse <- simulate_sparse_hmm(
       Y = simDat$SimData,
@@ -83,7 +83,7 @@ res_list_K3_noOUT <- mclapply(seq_len(nrow(hp)), function(i) {
       truth=truth
     )
     end=Sys.time()
-
+    
     est_s <- fit$s
     ARI_s <- mclust::adjustedRandIndex(est_s, truth)
     BAC_s = balanced_accuracy(est_s, truth)
@@ -178,7 +178,7 @@ res_list_K4_noOUT <- mclapply(seq_len(nrow(hp)), function(i) {
       mif=5,
       truth=truth
     )
-
+    
     est_s <- fit$s
     ARI_s <- mclust::adjustedRandIndex(est_s, truth)
     BAC_s = balanced_accuracy(est_s, truth)
@@ -312,12 +312,16 @@ source("Utils_sparse_robust_2.R")
 # P=10 
 load("D:/CNR/OneDrive - CNR/simres_robusts_parse/simstud_SRJM_K3_noOUT.Rdata")
 
+# Clean results
+resK3=clean_results(res_list_K3_noOUT,hp)
+hp=resK3$hp
+res_list_K3_noOUT=resK3$res_list
+
 res_K3_P10=analyze_results(res_list_K3_noOUT, hp, P=10, K=3, 
                            ylim_BAC = c(0.25, 1), 
                            show_legend = F,
                            facet_font_size = 12
-                           )
-
+)
 
 # CONSIGLIO: salva le heatmap in jpeg con dimensione 1500X700 per P=10
 # e 2000X1000 per P=25
@@ -341,7 +345,7 @@ res_K3_P25=analyze_results(res_list_K3_noOUT, hp, P=25, K=3,
                            facet_font_size = 12
                            # ,
                            # x_axis_font_size = 10
-                           )
+)
 
 res_K3_P25$best_row
 res_K3_P25$time_summary
@@ -360,6 +364,11 @@ dev.off()
 # P=10
 
 load("D:/CNR/OneDrive - CNR/simres_robusts_parse/simstud_SRJM_K4_noOUT.Rdata")
+
+# Clean results
+resK4=clean_results(res_list_K4_noOUT,hp)
+hp=resK4$hp
+res_list_K4_noOUT=resK4$res_list
 
 res_K4_P10=analyze_results(res_list_K4_noOUT, hp, P=10, K=4, 
                            ylim_BAC = c(0.25, 1), 
@@ -389,7 +398,7 @@ res_K4_P25=analyze_results(res_list_K4_noOUT, hp, P=25, K=4,
                            # ,
                            # x_axis_font_size = 10
                            # 
-                           )
+)
 
 
 res_K4_P25$best_row
@@ -633,6 +642,11 @@ source("Utils_sparse_robust_2.R")
 # P=10 
 load("D:/CNR/OneDrive - CNR/simres_robusts_parse/simstud_SRJM_K3_noOUT_T4000.Rdata")
 
+# Clean results
+resK3=clean_results(res_list_K3_noOUT_T4000,hp)
+hp=resK3$hp
+res_list_K3_noOUT_T4000=resK3$res_list
+
 res_K3_P10=analyze_results(res_list_K3_noOUT_T4000, hp, P=10, K=3, 
                            ylim_BAC = c(0.25, 1), 
                            show_legend = F,
@@ -679,6 +693,11 @@ dev.off()
 # P=10
 
 load("D:/CNR/OneDrive - CNR/simres_robusts_parse/simstud_SRJM_K4_noOUT_T4000.Rdata")
+
+# Clean results
+resK4=clean_results(res_list_K4_noOUT_T4000,hp)
+hp=resK4$hp
+res_list_K4_noOUT_T4000=resK4$res_list
 
 res_K4_P10=analyze_results(res_list_K4_noOUT_T4000, hp, P=10, K=4, 
                            ylim_BAC = c(0.25, 1), 

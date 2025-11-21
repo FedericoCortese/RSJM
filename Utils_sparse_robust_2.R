@@ -30,39 +30,10 @@ Mode <- function(x,na.rm=T) {
 }
 
 balanced_accuracy <- function(pred, truth) {
-  stopifnot(length(pred) == length(truth))
-  pred  <- as.factor(pred)
-  truth <- as.factor(truth)
   
-  # matrice di contingenza completa
-  tab <- table(pred, truth)
-  M <- as.matrix(tab)
-  
-  # Hungarian (massimizza le corrispondenze): rendi quadrata la matrice
-  r <- nrow(M); c <- ncol(M)
-  if (r < c) M <- rbind(M, matrix(0, nrow = c - r, ncol = c),
-                        deparse.level = 0)
-  if (r > c) M <- cbind(M, matrix(0, nrow = r, ncol = r - c),
-                        deparse.level = 0)
-  
-  # assegnamento ottimo (minimizza il costo = max(M) - M  -> massimizza M)
-  ass <- clue::solve_LSAP(max(M) - M)
-  
-  # mappa solo le righe originali
-  map_cols <- as.integer(ass[seq_len(nrow(tab))])
-  mapped_labels <- colnames(M)[map_cols]
-  mapping <- setNames(mapped_labels, rownames(tab))
-  
-  # relabel pred
-  pred_rel <- mapping[as.character(pred)]
-  
-  # confusion finale coerente con le classi vere
-  conf <- table(factor(pred_rel, levels = colnames(tab)),
-                factor(truth,     levels = colnames(tab)))
-  
-  # balanced accuracy = mean_k TP_k / (TP_k + FN_k)
-  recall <- diag(conf) / colSums(conf)
-  mean(recall, na.rm = TRUE)
+  conf=caret::confusionMatrix(as.factor(pred), as.factor(truth))
+  b=conf$byClass[, "Balanced Accuracy"]
+  return(mean(b))
 }
 
 
@@ -337,7 +308,6 @@ robust_sparse_jump <- function(Y,
                                alpha   = 0.1,
                                verbose = FALSE,
                                knn     = 10,
-                               c       = 10,
                                M       = NULL,
                                qt=NULL,
                                mif=NULL,
@@ -460,8 +430,8 @@ robust_sparse_jump <- function(Y,
         W_old <- W
       }
       if(!is.null(truth)){
-        #ARI=mclust::adjustedRandIndex(truth,s)
-        BAC=balanced_accuracy(s,truth)
+        ARI=mclust::adjustedRandIndex(truth,s)
+        #BAC=balanced_accuracy(s,truth)
       }
       #loss_vec=rbind(loss_vec,c(outer,loss,ARI,zeta))
       loss_vec=rbind(loss_vec,c(outer,loss,BAC,zeta))
@@ -470,10 +440,10 @@ robust_sparse_jump <- function(Y,
       zeta <- zeta + alpha * zeta0
       
       if (verbose) {
-        # cat(sprintf("init %2d, outer %2d → loss=%.4e, epsW=%.4e, zeta=%.3f, ARI=%.4f\n",
-        #             init_id, outer, loss, epsW, zeta, ARI))
-        cat(sprintf("init %2d, outer %2d → loss=%.4e, epsW=%.4e, zeta=%.3f, BAC=%.4f\n",
-                    init_id, outer, loss, epsW, zeta, BAC))
+        cat(sprintf("init %2d, outer %2d → loss=%.4e, epsW=%.4e, zeta=%.3f, ARI=%.4f\n",
+                    init_id, outer, loss, epsW, zeta, ARI))
+        # cat(sprintf("init %2d, outer %2d → loss=%.4e, epsW=%.4e, zeta=%.3f, BAC=%.4f\n",
+        #             init_id, outer, loss, epsW, zeta, BAC))
       }
     }
     
@@ -483,8 +453,9 @@ robust_sparse_jump <- function(Y,
          v      = v,
          loss   = loss,
          loss_vec=loss_vec[-1,],
-         #ARI=ARI
-         BAC=BAC)
+         ARI=ARI
+         #BAC=BAC
+         )
   }
   
   # run n_init times, pick the one with smallest loss
@@ -1468,5 +1439,27 @@ analyze_v_truth_boxgrid <- function(res_list, hp) {
     )
   
   list(run_df = run_df, best_row = best_row, grid_plot = p)
+}
+
+clean_results <- function(res_list, hp) {
+  # Keep only valid elements (no $error field)
+  keep <- vapply(res_list, function(x) {
+    !(is.list(x) && !is.null(x$error))
+  }, logical(1))
+  
+  # Filter both lists accordingly
+  res_list <- res_list[keep]
+  hp <- hp[keep, , drop = FALSE]
+  
+  # Recompute BAC for each valid element
+  for (i in seq_along(res_list)) {
+    res_list[[i]]$BAC_s <- balanced_accuracy(
+      res_list[[i]]$truth,
+      res_list[[i]]$s
+    )
+  }
+  
+  # Return both cleaned objects
+  list(res_list = res_list, hp = hp)
 }
 

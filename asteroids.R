@@ -30,16 +30,18 @@ old_vals <- sort(unique(df_2014OL339$type))
 df_2014OL339$type <- match(df_2014OL339$type, old_vals)
 
 plot(df_2014OL339$theta,col=df_2014OL339$type)
+plot(df_2014OL339$a,col=df_2014OL339$type)
 
 # Compute features
 
+L=50
 df_2014OL339_maxmins_theta=max_min_feat(df_2014OL339,
                                         "theta",tt_thres_maxmin=2.5,
                                         l=5)
 
-df_2014OL339_stat_theta=compute_feat(df_2014OL339,"theta",l=50,ma_flag   = F)
+df_2014OL339_stat_theta=compute_feat(df_2014OL339,"theta",l=L,ma_flag   = F)
 
-df_2014OL339_stat_a=compute_feat(df_2014OL339,"a",l=50,sd_flag   = F)
+df_2014OL339_stat_a=compute_feat(df_2014OL339,"a",l=L,sd_flag   = F)
 df_2014OL339_stat_a=df_2014OL339_stat_a[,c("t","ma_a")]
 
 
@@ -55,18 +57,118 @@ features_2014OL339=features_2014OL339[complete.cases(features_2014OL339), ]
 
 summary(features_2014OL339)
 
-sel_features_2014OL339=features_2014OL339[,c("value_max_theta", "value_min_theta",
-                                             "dtheta","sd_theta","sd_dtheta",
-                                             #"I_TP",
+sel_features_2014OL339=features_2014OL339[,c("value_max_theta", 
+                                             "value_min_theta",
+                                             "dtheta",
+                                             #"ma_theta",
+                                             "sd_theta",
+                                             #"sd_dtheta",
+                                             "I_TP",
                                              "I_HS",
-                                             "I_QS","I_CP",
+                                             "I_QS",
+                                             "I_CP",
                                              "ma_a")]
 
-# Extract ground truth and time
+
+# Extract ground truth and time, a and theta
 gt_2014OL339=features_2014OL339$type
 time_2014OL339=features_2014OL339$t
 a_2014OL339=features_2014OL339$a
 theta_2014OL339=features_2014OL339$theta
+
+x11()
+par(mfrow=c(3,1))
+plot(theta_2014OL339,col=gt_2014OL339)
+plot(sel_features_2014OL339$dtheta,col=gt_2014OL339)
+plot(sel_features_2014OL339$sd_theta,col=gt_2014OL339)
+
+
+
+library(ggplot2)
+library(tidyr)
+library(dplyr)
+
+dat <- sel_features_2014OL339
+dat$ground_truth <- as.factor(gt_2014OL339)
+
+# porta in formato long
+dat_long <- dat %>%
+  mutate(index = row_number()) %>%
+  pivot_longer(cols = -c(index, ground_truth),
+               names_to = "feature", values_to = "value")
+# plot
+ggplot(dat_long, aes(x = index, y = value, color = ground_truth)) +
+  geom_line(alpha = 0.7) +
+  geom_point(size = 1.5) +
+  facet_wrap(~ feature, scales = "free_y", ncol = 3) +
+  theme_minimal(base_size = 12) +
+  theme(
+    legend.position = "bottom",
+    strip.text = element_text(size = 10)
+  ) +
+  labs(x = "Index", y = "Value", color = "Ground truth")
+
+Y_input=sel_features_2014OL339[,c(
+  "dtheta",
+  "ma_a","sd_theta")]
+
+df <- cbind(Y_input, gt = gt_2014OL339)
+
+# shuffle within each cluster
+shuffled_df <- do.call(rbind, lapply(split(df, df$gt), function(g) {
+  g[sample(nrow(g)), , drop = FALSE]
+}))
+
+# check that proportions are preserved
+table(shuffled_df$gt,gt_2014OL339)
+
+Y_shuffled  <- shuffled_df[, names(Y_input)]
+
+x11()
+par(mfrow=c(3,1))
+plot(Y_shuffled$sd_theta,col=gt_2014OL339)
+plot(Y_shuffled$ma_a,col=gt_2014OL339)
+plot(Y_shuffled$dtheta,col=gt_2014OL339)
+
+
+# Fit RSJM
+source("Utils_sparse_robust_2.R")
+fit_2014OL339=robust_sparse_jump(Y_shuffled,
+                                 zeta0=.1,
+                                 lambda=1,
+                                 K=3,
+                                 tol     = NULL,
+                                 n_init  = 1,
+                                 n_outer = 15,
+                                 n_inner=20,
+                                 alpha   = 0.1,
+                                 verbose = T,
+                                 mif=NULL,
+                                 hd=T,
+                                 n_hd=500,
+                                 outlier=F,
+                                 truth=gt_2014OL339)
+
+
+table(fit_2014OL339$s,gt_2014OL339)
+
+library(MLmetrics)
+Accuracy(fit_2014OL339$s,gt_2014OL339)
+balanced_accuracy(fit_2014OL339$s,gt_2014OL339)
+
+West=round(fit_2014OL339$W,2)
+colnames(West)=c("ma_a","sd_theta",
+                 "value_max_theta",
+                 "value_min_theta")
+West
+plot(theta_2014OL339,col=fit_2014OL339$s)
+plot(sel_features_2014OL339$ma_a,col=fit_2014OL339$s)
+plot(sel_features_2014OL339$sd_theta,col=fit_2014OL339$s)
+plot(sel_features_2014OL339$value_max_theta,col=fit_2014OL339$s)
+plot(sel_features_2014OL339$value_min_theta,col=fit_2014OL339$s)
+
+# CV ----------------------------------------------------------------------
+
 
 # Artificially replicate data
 n_times=3

@@ -244,6 +244,11 @@ source("Utils_sparse_robust_2.R")
 
 load("D:/CNR/OneDrive - CNR/simres_robusts_parse/simstud_SRJM_K3_OUT(2).Rdata")
 
+# Clean results
+resK3=clean_results(res_list_K3_OUT,hp)
+hp=resK3$hp
+res_list_K3_OUT=resK3$res_list
+
 ## Caso 1: perc_out = 0.05 e qt = 0.95
 idx_95 <- which(hp$perc_out == 0.05 & hp$qt == 0.95)
 res_list_95 <- res_list_K3_OUT[idx_95]
@@ -283,6 +288,11 @@ out_v_99$grid_plot
 # K=4 ---------------------------------------------------------------------
 
 load("D:/CNR/OneDrive - CNR/simres_robusts_parse/simstud_SRJM_K4_OUT(2).Rdata")
+
+# Clean results
+resK4=clean_results(res_list_K4_OUT,hp)
+hp=resK4$hp
+res_list_K4_OUT=resK4$res_list
 
 ## Caso 1: perc_out = 0.05 e qt = 0.95
 idx_95 <- which(hp$perc_out == 0.05 & hp$qt == 0.95)
