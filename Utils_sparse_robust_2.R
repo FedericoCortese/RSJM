@@ -310,6 +310,7 @@ robust_sparse_jump <- function(Y,
                                knn     = 10,
                                M       = NULL,
                                qt=NULL,
+                               c=NULL,
                                mif=NULL,
                                hd=F,
                                n_hd=500,
@@ -328,7 +329,7 @@ robust_sparse_jump <- function(Y,
   
   Gamma <- lambda * (1 - diag(K))
   if(outlier){
-    v2 <- v_1(Y,knn=knn, c=c, M=M,qt=qt)
+    v2 <- v_1(Y,knn=knn, M=M,qt=qt)
   }
   
   run_one <- function(init_id) {
