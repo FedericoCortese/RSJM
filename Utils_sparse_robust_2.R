@@ -304,100 +304,122 @@ robust_sparse_jump <- function(Y,
                                tol     = 1e-16,
                                n_init  = 5,
                                n_outer = 20,
-                               n_inner=10,
+                               n_inner = 10,
                                alpha   = 0.1,
                                verbose = FALSE,
                                knn     = 10,
                                M       = NULL,
-                               qt=NULL,
-                               c=NULL,
-                               mif=NULL,
-                               hd=F,
-                               n_hd=500,
-                               outlier=T,
-                               truth=NULL) {
+                               qt      = NULL,
+                               c       = NULL,
+                               mif     = NULL,
+                               hd      = FALSE,
+                               n_hd    = 500,
+                               outlier = TRUE,
+                               truth   = NULL,
+                               parallel=F) {
   
   P  <- ncol(Y)
   TT <- nrow(Y)
   
   library(Rcpp)
-  
   Rcpp::sourceCpp("robJM.cpp")
   
-  start=Sys.time()
-  Y=scale(Y)
+  start <- Sys.time()
+  Y     <- scale(Y)
   
   Gamma <- lambda * (1 - diag(K))
-  if(outlier){
-    v2 <- v_1(Y,knn=knn, M=M,qt=qt)
+  if (outlier) {
+    v2 <- v_1(Y, knn = knn, M = M, qt = qt)
   }
   
   run_one <- function(init_id) {
     # 1) initial W, zeta, s
-    W        <- matrix(1/P, nrow=K, ncol=P)
+    W        <- matrix(1 / P, nrow = K, ncol = P)
     W_old    <- W
     zeta     <- zeta0
     loss_old <- Inf
-    #ARI=NA
-    BAC=NA
-    loss_vec=data.frame(iter=0,loss=loss_old,
-                        #ARI=ARI,
-                        BAC=BAC,
-                        zeta=zeta0)
+    ARI      <- NA
+    BAC     <- NA
+    loss_vec <- data.frame(iter = 0, loss = loss_old,
+                           ARI  = ARI,
+                           BAC  = BAC,
+                           zeta = zeta0)
     
+    # s <- sample(1:K, TT, replace = TRUE)
+    s <- initialize_states(Y, K)
     
-    #s = sample(1:K,TT,replace=T)
-    
-    s  <- initialize_states(Y, K)
+    converged <- FALSE   # flag per fermare anche il ciclo esterno
     
     for (outer in seq_len(n_outer)) {
       
-      for(inner in seq_len(n_inner)){
-        if(!outlier){
-          v=rep(1,TT)
-        }
-        else{
-          v1 <- v_1(W[s, , drop=FALSE] * Y, knn=knn, c=c, M=M,qt=qt)
+      for (inner in seq_len(n_inner)) {
+        
+        if (!outlier) {
+          v <- rep(1, TT)
+        } else {
+          v1 <- v_1(W[s, , drop = FALSE] * Y, knn = knn, c = c, M = M, qt = qt)
           v  <- pmin(v1, v2)
         }
         
-        
-        if(hd){
-          
-          sel_idx=sort(sample(1:TT,n_hd,replace=F))
-          Y_search=Y[sel_idx,]
-          
-          Y_search=as.matrix(Y_search*v[sel_idx])
-          
+        if (hd) {
+          sel_idx  <- sort(sample(1:TT, n_hd, replace = FALSE))
+          Y_search <- Y[sel_idx, ]
+          Y_search <- as.matrix(Y_search * v[sel_idx])
+        } else {
+          Y_search <- as.matrix(Y * v)
+          sel_idx  <- 1:TT
         }
         
+        if(parallel){
+          n_cores <- parallel::detectCores() - 1  # o metti tu a mano
+          
+          medoid_chunks <- split(
+            1:TT,
+            cut(1:TT, breaks = n_cores, labels = FALSE)
+          )
+          
+          DW_list <- parallel::mclapply(
+            medoid_chunks,
+            function(idx) {
+              weight_inv_exp_dist(
+                Y       = Y_search,
+                s       = s[sel_idx],
+                W       = W,
+                zeta    = zeta,
+                medoids = idx  # qui usi la versione T x K
+              )
+            },
+            mc.cores = n_cores
+          )
+          
+          DW <- do.call(cbind, DW_list)
+          
+        }
         else{
-          Y_search=as.matrix(Y * v)
-          sel_idx=1:TT
+          DW      <- weight_inv_exp_dist(Y_search, s[sel_idx], W, zeta)
         }
-        
-        DW      <- weight_inv_exp_dist(Y_search, s[sel_idx], W, zeta)
-        
-        pam_out <- cluster::pam(DW, k=K, diss=TRUE)
-        
-        medoids=sel_idx[pam_out$id.med]
+        pam_out <- cluster::pam(DW, k = K, diss = TRUE)
+        medoids <- sel_idx[pam_out$id.med]
         
         # 4) build loss-by-state
-        if(!hd){
-          loss_by_state <- DW[, medoids, drop=FALSE]  # TT x K
-        }
-        
-        else{
-          loss_by_state <- weight_inv_exp_dist(Y=as.matrix(Y * v),s=s,W=W,zeta=zeta,medoids=medoids)
-          
+        if (!hd) {
+          # TT x K
+          loss_by_state <- DW[, medoids, drop = FALSE]
+        } else {
+          loss_by_state <- weight_inv_exp_dist(
+            Y        = as.matrix(Y * v),
+            s        = s,
+            W        = W,
+            zeta     = zeta,
+            medoids  = medoids
+          )
         }
         
         s_old <- s
         
-        Estep=E_step(loss_by_state,
-                     Gamma)
-        V=Estep$V
-        s=Estep$s
+        Estep <- E_step(loss_by_state, Gamma)
+        V     <- Estep$V
+        s     <- Estep$s
         
         # 7) must have all K states or revert
         if (length(unique(s)) < K) {
@@ -406,107 +428,128 @@ robust_sparse_jump <- function(Y,
         }
         
         # 9) update W via WCD + exp
-        
-        Spk <- WCD(s[sel_idx], as.matrix(Y_search 
-                                         * v[sel_idx]
-        ), K)
-        
+        Spk <- WCD(
+          s[sel_idx],
+          as.matrix(Y_search * v[sel_idx]),
+          K
+        )
         
         wcd <- exp(-Spk / zeta0)
         W   <- wcd / rowSums(wcd)
         
         # Loss computation
-        loss=sum(DW[upper.tri(DW)])+
-          zeta0*sum(W*log(W))+
-          lambda*sum(s[-1]!=s[-TT])
+        # loss <- sum(DW[upper.tri(DW)]) +
+        #   zeta0 * sum(W * log(W)) +
+        #   lambda * sum(s[-1] != s[-TT])
+        loss <- sum(loss_by_state) +
+          zeta0 * sum(W * log(W)) +
+          lambda * sum(s[-1] != s[-TT])
         
         # Loss convergence
-        if (!is.null(tol) && abs(loss - loss_old) < tol) break
+        if (!is.null(tol) && abs(loss - loss_old) < tol) {
+          #converged <- TRUE
+          break      # esce dal ciclo INNER
+        }
         loss_old <- loss
-        
         
         # 10) W‐convergence as in Kampert 2017
         epsW <- sum(abs(W - W_old))
-        if (!is.null(tol) && epsW < tol) break
+        if (!is.null(tol) && epsW < tol) {
+          converged <- TRUE
+          break      # esce dal ciclo INNER
+        }
         W_old <- W
+      } # fine ciclo inner
+      
+      if (!is.null(truth)) {
+        ARI <- mclust::adjustedRandIndex(truth, s)
+        BAC <- balanced_accuracy(s, truth)
       }
-      if(!is.null(truth)){
-        ARI=mclust::adjustedRandIndex(truth,s)
-        #BAC=balanced_accuracy(s,truth)
+      loss_vec <- rbind(loss_vec, c(outer, loss, ARI,BAC, zeta))
+      
+      if (converged) {
+        if (verbose) {
+          cat(sprintf(
+            "init %2d, outer %2d (inner %2d) → CONVERGED: loss=%.4e, epsW=%.4e, zeta=%.3f, ARI=%.4f\n",
+            init_id, outer, inner, loss, epsW, zeta, ARI
+          ))
+        }
+        break   # esce anche dal ciclo OUTER
       }
-      #loss_vec=rbind(loss_vec,c(outer,loss,ARI,zeta))
-      loss_vec=rbind(loss_vec,c(outer,loss,BAC,zeta))
       
       # 11) bump zeta
       zeta <- zeta + alpha * zeta0
       
-      if (verbose) {
-        cat(sprintf("init %2d, outer %2d → loss=%.4e, epsW=%.4e, zeta=%.3f, ARI=%.4f\n",
-                    init_id, outer, loss, epsW, zeta, ARI))
+      if (verbose && !converged) {
+        cat(sprintf(
+          "init %2d, outer %2d → loss=%.4e, epsW=%.4e, zeta=%.3f, ARI=%.4f\n",
+          init_id, outer, epsW, epsW, zeta, ARI
+        ))
         # cat(sprintf("init %2d, outer %2d → loss=%.4e, epsW=%.4e, zeta=%.3f, BAC=%.4f\n",
         #             init_id, outer, loss, epsW, zeta, BAC))
       }
-    }
+    } # fine ciclo outer
     
-    list(W      = W,
-         s      = s,
-         medoids= medoids,
-         v      = v,
-         loss   = loss,
-         loss_vec=loss_vec[-1,],
-         ARI=ARI
-         #BAC=BAC
-         )
+    list(
+      W        = W,
+      s        = s,
+      medoids  = medoids,
+      v        = v,
+      loss     = loss,
+      loss_vec = loss_vec[-1, ],
+      ARI      = ARI,
+      BAC   = BAC
+    )
   }
   
   # run n_init times, pick the one with smallest loss
   res_list <- lapply(seq_len(n_init), run_one)
   losses   <- vapply(res_list, `[[`, numeric(1), "loss")
-  best_run <- res_list[[ which.min(losses) ]]
+  best_run <- res_list[[which.min(losses)]]
   
-  best_s   <- best_run$s
-  best_loss<- best_run$loss
-  loss_vec=best_run$loss_vec
-  
-  best_W = best_run$W
-  best_medoids  <- Y[best_run$medoids,]
-  best_v <- best_run$v
+  best_s     <- best_run$s
+  best_loss  <- best_run$loss
+  loss_vec   <- best_run$loss_vec
+  best_W     <- best_run$W
+  best_medoids <- Y[best_run$medoids, ]
+  best_v     <- best_run$v
   
   # Most important features (mif)
-  if(is.null(mif)){
-    mif=which.max(apply(best_W,2,sum))
+  if (is.null(mif)) {
+    mif <- which.max(apply(best_W, 2, sum))
   }
   
   # Re‐order states based on most important feature state-conditional median
-  new_best_s <- order_states_condMed(Y[, mif], best_s,decreasing=F)
+  new_best_s <- order_states_condMed(Y[, mif], best_s, decreasing = FALSE)
   
-  # tab <- table(best_s, new_best_s)
-  # new_order <- apply(tab, 1, which.max)
-  # 
-  # best_W <- best_W[new_order,]
-  tab <- table(factor(best_s, levels = 1:K),
-               factor(new_best_s, levels = 1:K))
+  tab <- table(
+    factor(best_s,    levels = 1:K),
+    factor(new_best_s, levels = 1:K)
+  )
   
-  perm <- apply(tab, 2, which.max)  # per ogni nuova etichetta (colonna), la vecchia (riga)
+  perm   <- apply(tab, 2, which.max)  # per ogni nuova etichetta, la vecchia
   best_W <- best_W[perm, , drop = FALSE]
-  end=Sys.time()
   
-  ret_list=list(W = best_W,
-                s = new_best_s,
-                medoids = best_medoids,
-                v = best_v,
-                loss = best_loss,
-                loss_vec=loss_vec,
-                zeta0 = zeta0,
-                lambda = lambda,
-                c = c,
-                knn=knn,
-                M = M,
-                elapsed=end-start)
+  end <- Sys.time()
+  
+  ret_list <- list(
+    W       = best_W,
+    s       = new_best_s,
+    medoids = best_medoids,
+    v       = best_v,
+    loss    = best_loss,
+    loss_vec = loss_vec,
+    zeta0   = zeta0,
+    lambda  = lambda,
+    c       = c,
+    knn     = knn,
+    M       = M,
+    elapsed = end - start
+  )
   
   return(ret_list)
-  
 }
+
 
 cv_robust_sparse_jump <- function(
     Y,
