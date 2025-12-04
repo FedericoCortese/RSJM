@@ -338,10 +338,10 @@ robust_sparse_jump <- function(Y,
     zeta     <- zeta0
     loss_old <- Inf
     ARI      <- NA
-    BAC     <- NA
+    #BAC     <- NA
     loss_vec <- data.frame(iter = 0, loss = loss_old,
                            ARI  = ARI,
-                           BAC  = BAC,
+                           #BAC  = BAC,
                            zeta = zeta0)
     
     # s <- sample(1:K, TT, replace = TRUE)
@@ -436,9 +436,11 @@ robust_sparse_jump <- function(Y,
       
       if (!is.null(truth)) {
         ARI <- mclust::adjustedRandIndex(truth, s)
-        BAC <- balanced_accuracy(s, truth)
+        #BAC <- balanced_accuracy(s, truth)
       }
-      loss_vec <- rbind(loss_vec, c(outer, loss, ARI,BAC, zeta))
+      loss_vec <- rbind(loss_vec, c(outer, loss, ARI,
+                                    #BAC, 
+                                    zeta))
       
       if (converged) {
         if (verbose) {
@@ -470,8 +472,9 @@ robust_sparse_jump <- function(Y,
       v        = v,
       loss     = loss,
       loss_vec = loss_vec[-1, ],
-      ARI      = ARI,
-      BAC   = BAC
+      ARI      = ARI
+      # ,
+      # BAC   = BAC
     )
   }
   
