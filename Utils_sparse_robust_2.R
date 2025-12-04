@@ -315,8 +315,7 @@ robust_sparse_jump <- function(Y,
                                hd      = FALSE,
                                n_hd    = 500,
                                outlier = TRUE,
-                               truth   = NULL,
-                               parallel=F) {
+                               truth   = NULL) {
   
   P  <- ncol(Y)
   TT <- nrow(Y)
@@ -370,34 +369,8 @@ robust_sparse_jump <- function(Y,
           sel_idx  <- 1:TT
         }
         
-        if(parallel){
-          n_cores <- parallel::detectCores() - 1  # o metti tu a mano
-          
-          medoid_chunks <- split(
-            1:TT,
-            cut(1:TT, breaks = n_cores, labels = FALSE)
-          )
-          
-          DW_list <- parallel::mclapply(
-            medoid_chunks,
-            function(idx) {
-              weight_inv_exp_dist(
-                Y       = Y_search,
-                s       = s[sel_idx],
-                W       = W,
-                zeta    = zeta,
-                medoids = idx  # qui usi la versione T x K
-              )
-            },
-            mc.cores = n_cores
-          )
-          
-          DW <- do.call(cbind, DW_list)
-          
-        }
-        else{
-          DW      <- weight_inv_exp_dist(Y_search, s[sel_idx], W, zeta)
-        }
+        DW      <- weight_inv_exp_dist(Y_search, s[sel_idx], W, zeta)
+        
         pam_out <- cluster::pam(DW, k = K, diss = TRUE)
         medoids <- sel_idx[pam_out$id.med]
         
