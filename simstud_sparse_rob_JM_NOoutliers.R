@@ -420,6 +420,179 @@ res_K4_P25$time_summary
 #dev.off()
 
 
+
+# Results COSA ------------------------------------------------------------
+
+# K=3 ----------------------------------------------------------------
+
+# P=10 
+load("D:/CNR/OneDrive - CNR/simres_robusts_parse/simstud_SRJM_K3_noOUT.Rdata")
+
+# Clean results
+resK3=clean_results(res_list_K3_noOUT,hp)
+hp=resK3$hp
+res_list_K3_noOUT=resK3$res_list
+
+res_K3_P10=analyze_results(res_list_K3_noOUT, hp, P=10, K=3, 
+                           ylim_BAC = c(0.25, 1), 
+                           show_legend = F,
+                           facet_font_size = 12,
+                           lambda_sel=0
+)
+
+# CONSIGLIO: salva le heatmap in jpeg con dimensione 1500X700 per P=10
+# e 2000X1000 per P=25
+
+res_K3_P10$best_row
+res_K3_P10$time_summary
+
+#1000X300
+x11()
+res_K3_P10$BAC_plot
+
+#1500X700
+x11()
+res_K3_P10$heatmap_plot
+
+# P=25 
+res_K3_P25=analyze_results(res_list_K3_noOUT, hp, P=25, K=3,
+                           #label_size = 2,
+                           ylim_BAC = c(0.25, 1), 
+                           show_legend = F,
+                           facet_font_size = 12,
+                           lambda_sel=0
+                           # ,
+                           # x_axis_font_size = 10
+)
+
+res_K3_P25$best_row
+res_K3_P25$time_summary
+
+x11()
+res_K3_P25$BAC_plot
+
+#2000X1000
+#x11()
+jpeg("hmK3P25.jpeg", height = 21, width = 39.7, units = "cm", res = 300)
+res_K3_P25$heatmap_plot
+dev.off()
+
+# K=4  ---------------------------------------------------------------
+
+# P=10
+
+load("D:/CNR/OneDrive - CNR/simres_robusts_parse/simstud_SRJM_K4_noOUT.Rdata")
+
+# Clean results
+resK4=clean_results(res_list_K4_noOUT,hp)
+hp=resK4$hp
+res_list_K4_noOUT=resK4$res_list
+
+res_K4_P10=analyze_results(res_list_K4_noOUT, hp, P=10, K=4, 
+                           ylim_BAC = c(0.25, 1), 
+                           show_legend = F,
+                           facet_font_size = 12,
+                           lambda_sel=0
+)
+
+res_K4_P10$best_row
+res_K4_P10$time_summary
+
+x11()
+res_K4_P10$BAC_plot
+
+#1500X700
+x11()
+res_K4_P10$heatmap_plot
+
+res_K4_P10$time_summary
+
+#P=25
+
+res_K4_P25=analyze_results(res_list_K4_noOUT, hp, P=25, K=4,
+                           #label_size = 2,
+                           ylim_BAC = c(0.25, 1), 
+                           show_legend = F,
+                           facet_font_size = 12,
+                           lambda_sel=0
+                           # ,
+                           # x_axis_font_size = 10
+                           # 
+)
+
+
+res_K4_P25$best_row
+res_K4_P25$time_summary
+
+x11()
+res_K4_P25$BAC_plot
+x11()
+jpeg("hmK4P25.jpeg", height = 21, width = 39.7, units = "cm", res = 300)
+res_K4_P25$heatmap_plot
+dev.off()
+
+res_K4_P25$time_summary
+
+
+#Cairo::CairoPDF("W_heatmap_K3_P10_lambda1_c10.pdf", width = 12, height = 12)
+
+
+#dev.off()
+
+
+
+# P=10
+
+load("D:/CNR/OneDrive - CNR/simres_robusts_parse/simstud_SRJM_K4_noOUT_T4000.Rdata")
+
+# Clean results
+resK4=clean_results(res_list_K4_noOUT_T4000,hp)
+hp=resK4$hp
+res_list_K4_noOUT_T4000=resK4$res_list
+
+res_K4_P10=analyze_results(res_list_K4_noOUT_T4000, hp, P=10, K=4, 
+                           ylim_BAC = c(0.25, 1), 
+                           show_legend = F,
+                           facet_font_size = 12
+)
+
+res_K4_P10$best_row
+res_K4_P10$time_summary
+
+x11()
+res_K4_P10$BAC_plot
+
+#1500X700
+x11()
+res_K4_P10$heatmap_plot
+
+res_K4_P10$time_summary
+
+#P=25
+
+res_K4_P25=analyze_results(res_list_K4_noOUT_T4000, hp, P=25, K=4,
+                           label_size = 2,
+                           ylim_BAC = c(0.25, 1), 
+                           show_legend = F,
+                           facet_font_size = 12,
+                           x_axis_font_size = 10)
+
+
+res_K4_P25$best_row
+res_K4_P25$time_summary
+
+x11()
+res_K4_P25$BAC_plot
+x11()
+jpeg("hmK4P25_T4000.jpeg", height = 21, width = 39.7, units = "cm", res = 300)
+res_K4_P25$heatmap_plot
+dev.off()
+
+res_K4_P25$time_summary
+
+
+
+
 # T=4000 ------------------------------------------------------------------
 
 # Tutto identico a prima, ora vogliamo vedere se il subsampling impatta sui risultati
@@ -738,3 +911,5 @@ res_K4_P25$heatmap_plot
 dev.off()
 
 res_K4_P25$time_summary
+
+

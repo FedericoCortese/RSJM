@@ -9,10 +9,8 @@ P=10
 zeta0=c(0,0.05,.1,.15,.20,.25,.3,.4,.5)
 zeta0[1]=.01
 alpha=.1
-lambda=seq(0,1,.25)
 
-# Fare prima delle prove a mano per capire i valori di c
-qt=c(.95,.99)
+
 perc_out=c(.05,.01)
 
 nseed=50
@@ -20,9 +18,7 @@ nseed=50
 hp=expand.grid(
   seed=1:nseed,
   zeta0=zeta0,
-  lambda=lambda,
   P=P,
-  qt=qt,
   perc_out=perc_out
 )
 
@@ -36,14 +32,13 @@ rel_[[3]]=c(3,4,5)
 
 K=3
 
-res_list_K3_OUT <- mclapply(seq_len(nrow(hp)), function(i) {
+res_list_K3_OUT_COSA <- mclapply(seq_len(nrow(hp)), function(i) {
   tryCatch({
     
     seed <- hp$seed[i]
     zeta0 <- hp$zeta0[i]
-    lambda <- hp$lambda[i]
+    lambda <- 0
     P <- hp$P[i]
-    qt <- hp$qt[i]
     perc_out <- hp$perc_out[i]
     
     simDat <- sim_data_stud_t(seed=seed,
@@ -79,12 +74,12 @@ res_list_K3_OUT <- mclapply(seq_len(nrow(hp)), function(i) {
       alpha = 0.1,
       verbose = F,
       knn = 10,
-      qt=qt,
+      qt=NULL,
       c = NULL,
       M = NULL,
       hd=T,
       n_hd=500,
-      outlier=T,
+      outlier=F,
       mif=5,
       truth=truth
     )
@@ -127,7 +122,7 @@ end_full <- Sys.time()
 
 elapsed_full=end_full-start_full
 
-save(res_list_K3_OUT,elapsed_full, hp,file='simstud_SRJM_K3_OUT(2).Rdata')
+save(res_list_K3_OUT_COSA,elapsed_full, hp,file='simstud_SRJM_K3_OUT_COSA.Rdata')
 
 
 start_full <- Sys.time()
@@ -139,14 +134,12 @@ rel_[[4]]=c(4,5,6)
 
 K=4
 
-res_list_K4_OUT <- mclapply(seq_len(nrow(hp)), function(i) {
+res_list_K4_OUT_COSA <- mclapply(seq_len(nrow(hp)), function(i) {
   tryCatch({
     
     seed <- hp$seed[i]
     zeta0 <- hp$zeta0[i]
-    lambda <- hp$lambda[i]
     P <- hp$P[i]
-    qt <- hp$qt[i]
     perc_out <- hp$perc_out[i]
     
     simDat <- sim_data_stud_t(seed=seed,
@@ -173,7 +166,7 @@ res_list_K4_OUT <- mclapply(seq_len(nrow(hp)), function(i) {
     fit <- robust_sparse_jump(
       Y = as.matrix(simDat_sparse$Y),
       zeta0 = zeta0,
-      lambda = lambda,
+      lambda = 0,
       K = K,
       tol = 1e-2,
       n_init = 1,
@@ -182,7 +175,7 @@ res_list_K4_OUT <- mclapply(seq_len(nrow(hp)), function(i) {
       alpha = 0.1,
       verbose = F,
       knn = 10,
-      qt=qt,
+      qt=NULL,
       c = NULL,
       M = NULL,
       hd=T,
@@ -230,111 +223,16 @@ end_full <- Sys.time()
 
 elapsed_full=end_full-start_full
 
-save(res_list_K4_OUT,elapsed_full, hp,file='simstud_SRJM_K4_OUT(2).Rdata')
-
-
-
-# Results -----------------------------------------------------------------
-
-library(scales)
-source("Utils_sparse_robust_2.R")
-
-
-# K=3 ---------------------------------------------------------------------
-
-load("D:/CNR/OneDrive - CNR/simres_robusts_parse/simstud_SRJM_K3_OUT(2).Rdata")
-
-# Clean results
-resK3=clean_results(res_list_K3_OUT,hp)
-hp=resK3$hp
-res_list_K3_OUT=resK3$res_list
-
-## Caso 1: perc_out = 0.05 e qt = 0.95
-idx_95 <- which(hp$perc_out == 0.05 & hp$qt == 0.95)
-res_list_95 <- res_list_K3_OUT[idx_95]
-hp_95 <- hp[idx_95, ]
-
-## Caso 2: perc_out = 0.01 e qt = 0.99
-idx_99 <- which(hp$perc_out == 0.01 & hp$qt == 0.99)
-res_list_99 <- res_list_K3_OUT[idx_99]
-hp_99 <- hp[idx_99, ]
-
-out_95 <- analyze_results(res_list_95, hp_95, P = 10, K = 3)
-out_99 <- analyze_results(res_list_99, hp_99, P = 10, K = 3)
-
-#1000x300
-out_95$BAC_plot
-out_99$BAC_plot
-
-#1500X700
-out_95$heatmap_plot
-out_99$heatmap_plot
-
-out_95$best_row
-out_95$time_summary
-
-out_99$best_row
-out_99$time_summary
-
-
-out_v_95 <- analyze_v_truth_boxgrid(res_list_95, hp_95)
-#1000x800
-out_v_95$grid_plot
-
-
-out_v_99 <- analyze_v_truth_boxgrid(res_list_99, hp_99)
-out_v_99$grid_plot
-
-# K=4 ---------------------------------------------------------------------
-
-load("D:/CNR/OneDrive - CNR/simres_robusts_parse/simstud_SRJM_K4_OUT(2).Rdata")
-
-# Clean results
-resK4=clean_results(res_list_K4_OUT,hp)
-hp=resK4$hp
-res_list_K4_OUT=resK4$res_list
-
-## Caso 1: perc_out = 0.05 e qt = 0.95
-idx_95 <- which(hp$perc_out == 0.05 & hp$qt == 0.95)
-res_list_95 <- res_list_K4_OUT[idx_95]
-hp_95 <- hp[idx_95, ]
-
-## Caso 2: perc_out = 0.01 e qt = 0.99
-idx_99 <- which(hp$perc_out == 0.01 & hp$qt == 0.99)
-res_list_99 <- res_list_K4_OUT[idx_99]
-hp_99 <- hp[idx_99, ]
-
-out_95 <- analyze_results(res_list_95, hp_95, P = 10, K = 4)
-out_99 <- analyze_results(res_list_99, hp_99, P = 10, K = 4)
-
-#1000x300
-out_95$BAC_plot
-out_99$BAC_plot
-
-#1500X700
-out_95$heatmap_plot
-out_99$heatmap_plot
-
-out_95$time_summary
-out_99$time_summary
-
-out_v_95 <- analyze_v_truth_boxgrid(res_list_95, hp_95)
-#1000x800
-out_v_95$grid_plot
-
-
-out_v_99 <- analyze_v_truth_boxgrid(res_list_99, hp_99)
-out_v_99$grid_plot
-
+save(res_list_K4_OUT_COSA,elapsed_full, hp,file='simstud_SRJM_K4_OUT_COSA.Rdata')
 
 # Results COSA ------------------------------------------------------------
 
 # K=3 ---------------------------------------------------------------------
 
-load("D:/CNR/OneDrive - CNR/simres_robusts_parse/simstud_SRJM_K3_OUT(2).Rdata")
+load("D:/CNR/OneDrive - CNR/simres_robusts_parse/simstud_SRJM_K3_OUT_COSA.Rdata")
 
 # Clean results
-resK3=clean_results(res_list_K3_OUT,hp)
+resK3=clean_results(res_list_K3_OUT_COSA,hp)
 hp=resK3$hp
 res_list_K3_OUT=resK3$res_list
 
@@ -378,10 +276,10 @@ out_v_99$grid_plot
 
 # K=4 ---------------------------------------------------------------------
 
-load("D:/CNR/OneDrive - CNR/simres_robusts_parse/simstud_SRJM_K4_OUT(2).Rdata")
+load("D:/CNR/OneDrive - CNR/simres_robusts_parse/simstud_SRJM_K4_OUT_COSA.Rdata")
 
 # Clean results
-resK4=clean_results(res_list_K4_OUT,hp)
+resK4=clean_results(res_list_K4_OUT_COSA,hp)
 hp=resK4$hp
 res_list_K4_OUT=resK4$res_list
 
@@ -416,5 +314,3 @@ out_v_95$grid_plot
 
 out_v_99 <- analyze_v_truth_boxgrid(res_list_99, hp_99)
 out_v_99$grid_plot
-
-

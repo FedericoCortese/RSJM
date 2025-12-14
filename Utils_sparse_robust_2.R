@@ -1187,7 +1187,14 @@ analyze_results <- function(res_list, hp, P, K,
                             ylim_BAC = c(0, 1), 
                             show_legend = F,
                             facet_font_size = 22,
-                            x_axis_font_size = 13) {
+                            x_axis_font_size = 13,
+                            lambda_sel=NULL) {
+  
+  if (!is.null(lambda_sel)) {
+    keep_idx <- hp$lambda == lambda_sel
+    res_list <- res_list[keep_idx]
+    hp       <- hp[keep_idx, , drop = FALSE]
+  }
   
   # --- Filtra per P ---
   idx_P <- hp$P == P
