@@ -1444,28 +1444,54 @@ analyze_v_truth_boxgrid <- function(res_list, hp) {
       "(median BAC =", round(best_row$med_BAC, 3), ")\n")
   
   # --- boxplot grid v vs truth per lambda × zeta0 con cornici ---
-  p <- ggplot(run_df, aes(x = truth, y = v, fill = truth)) +
-    geom_boxplot(outlier.shape = NA, alpha = 0.85, width = 0.6, color = "black", linewidth = 0.3) +
+  grid_plot <- ggplot(run_df, aes(x = truth, y = v, fill = truth)) +
+    geom_boxplot(outlier.shape = NA, alpha = 0.85, width = 0.6,
+                 color = "black", linewidth = 0.3) +
     facet_grid(rows = vars(lambda), cols = vars(zeta0),
-               labeller = label_bquote(rows = λ == .(lambda), cols = ζ[0] == .(zeta0))) +
-    scale_fill_manual(values = c("Outlier" = "firebrick3", "Inlier" = "steelblue")) +
+               labeller = label_bquote(rows = λ == .(lambda),
+                                       cols = ζ[0] == .(zeta0))) +
+    scale_fill_manual(values = c("Outlier" = "firebrick3",
+                                 "Inlier"  = "steelblue")) +
     labs(x = NULL, y = "v") +
     theme_minimal(base_size = 14) +
     theme(
-      legend.position = "none",
-      strip.text.x = element_text(size = 11, face = "bold"),
-      strip.text.y = element_text(size = 11, face = "bold", angle = 0),
-      axis.text.x = element_text(size = 9),
-      axis.text.y = element_text(size = 9),
-      axis.title = element_text(size = 13),
-      panel.spacing = unit(0, "lines"),
-      panel.border = element_rect(colour = "black", fill = NA, linewidth = 0.6),
-      panel.background = element_rect(fill = "white", colour = "black"),
-      panel.grid = element_blank(),
-      strip.background = element_rect(fill = "grey92", colour = "black")
+      legend.position   = "none",
+      strip.text.x      = element_text(size = 11, face = "bold"),
+      strip.text.y      = element_text(size = 11, face = "bold", angle = 0),
+      axis.text.x       = element_text(size = 9),
+      axis.text.y       = element_text(size = 9),
+      axis.title        = element_text(size = 13),
+      panel.spacing     = unit(0, "lines"),
+      panel.border      = element_rect(colour = "black", fill = NA, linewidth = 0.6),
+      panel.background  = element_rect(fill = "white", colour = "black"),
+      panel.grid        = element_blank(),
+      strip.background  = element_rect(fill = "grey92", colour = "black")
     )
   
-  list(run_df = run_df, best_row = best_row, grid_plot = p)
+  # --- boxplot unico aggregato su tutte le (lambda, zeta0) ---
+  overall_boxplot <- ggplot(run_df, aes(x = truth, y = v, fill = truth)) +
+    geom_boxplot(outlier.shape = NA, alpha = 0.85, width = 0.6,
+                 color = "black", linewidth = 0.3) +
+    scale_fill_manual(values = c("Outlier" = "firebrick3",
+                                 "Inlier"  = "steelblue")) +
+    labs(x = NULL, y = "v") +
+    theme_minimal(base_size = 14) +
+    theme(
+      legend.position  = "none",
+      axis.text.x      = element_text(size = 10),
+      axis.text.y      = element_text(size = 10),
+      axis.title       = element_text(size = 13),
+      panel.border     = element_rect(colour = "black", fill = NA, linewidth = 0.6),
+      panel.background = element_rect(fill = "white", colour = "black"),
+      panel.grid       = element_blank()
+    )
+  
+  list(
+    run_df         = run_df,
+    best_row       = best_row,
+    grid_plot      = grid_plot,
+    overall_plot   = overall_boxplot
+  )
 }
 
 clean_results <- function(res_list, hp) {
@@ -1488,5 +1514,59 @@ clean_results <- function(res_list, hp) {
   
   # Return both cleaned objects
   list(res_list = res_list, hp = hp)
+}
+
+summarize_COSA <- function(res_list, hp) {
+  library(dplyr)
+  library(tibble)
+  library(purrr)
+  
+  # Extract BAC + parameters
+  df <- map_dfr(seq_along(res_list), function(i) {
+    r <- res_list[[i]]
+    tibble(
+      BAC_s    = r$BAC_s,
+      zeta0    = hp$zeta0[i],
+      K        = r$K,
+      perc_out = hp$perc_out[i]
+    )
+  })
+  
+  # Summary for each zeta0
+  summary_zeta <- df %>%
+    group_by(K, perc_out, zeta0) %>%
+    summarise(
+      median_BAC = median(BAC_s, na.rm = TRUE),
+      q025 = quantile(BAC_s, 0.025, na.rm = TRUE),
+      q975 = quantile(BAC_s, 0.975, na.rm = TRUE),
+      .groups = "drop"
+    )
+  
+  # Identify optimal zeta0 per (K, perc_out)
+  best_zeta <- summary_zeta %>%
+    group_by(K, perc_out) %>%
+    slice(which.max(median_BAC)) %>%
+    ungroup() %>%
+    rename(opt_zeta0 = zeta0)
+  
+  # Summary ignoring zeta0
+  final_summary <- df %>%
+    group_by(K, perc_out) %>%
+    summarise(
+      median_BAC = median(BAC_s, na.rm = TRUE),
+      q025 = quantile(BAC_s, 0.025, na.rm = TRUE),
+      q975 = quantile(BAC_s, 0.975, na.rm = TRUE),
+      .groups = "drop"
+    ) %>%
+    left_join(
+      best_zeta %>% dplyr::select(K, perc_out, opt_zeta0),
+      by = c("K", "perc_out")
+    )
+  
+  return(list(
+    by_zeta0 = summary_zeta,
+    best_zeta0 = best_zeta,
+    summary = final_summary
+  ))
 }
 

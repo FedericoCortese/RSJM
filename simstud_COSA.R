@@ -227,90 +227,19 @@ save(res_list_K4_OUT_COSA,elapsed_full, hp,file='simstud_SRJM_K4_OUT_COSA.Rdata'
 
 # Results COSA ------------------------------------------------------------
 
+source("Utils_sparse_robust_2.R")
+
 # K=3 ---------------------------------------------------------------------
 
 load("D:/CNR/OneDrive - CNR/simres_robusts_parse/simstud_SRJM_K3_OUT_COSA.Rdata")
 
 # Clean results
-resK3=clean_results(res_list_K3_OUT_COSA,hp)
-hp=resK3$hp
-res_list_K3_OUT=resK3$res_list
-
-## Caso 1: perc_out = 0.05 e qt = 0.95
-idx_95 <- which(hp$perc_out == 0.05 & hp$qt == 0.95)
-res_list_95 <- res_list_K3_OUT[idx_95]
-hp_95 <- hp[idx_95, ]
-
-## Caso 2: perc_out = 0.01 e qt = 0.99
-idx_99 <- which(hp$perc_out == 0.01 & hp$qt == 0.99)
-res_list_99 <- res_list_K3_OUT[idx_99]
-hp_99 <- hp[idx_99, ]
-
-out_95 <- analyze_results(res_list_95, hp_95, P = 10, K = 3,
-                          lambda_sel=0)
-out_99 <- analyze_results(res_list_99, hp_99, P = 10, K = 3,
-                          lambda_sel=0)
-
-#1000x300
-out_95$BAC_plot
-out_99$BAC_plot
-
-#1500X700
-out_95$heatmap_plot
-out_99$heatmap_plot
-
-out_95$best_row
-out_95$time_summary
-
-out_99$best_row
-out_99$time_summary
-
-
-out_v_95 <- analyze_v_truth_boxgrid(res_list_95, hp_95)
-#1000x800
-out_v_95$grid_plot
-
-
-out_v_99 <- analyze_v_truth_boxgrid(res_list_99, hp_99)
-out_v_99$grid_plot
+outK3_COSA <- summarize_COSA(res_list_K3_OUT_COSA, hp)
+outK3_COSA
 
 # K=4 ---------------------------------------------------------------------
 
 load("D:/CNR/OneDrive - CNR/simres_robusts_parse/simstud_SRJM_K4_OUT_COSA.Rdata")
 
-# Clean results
-resK4=clean_results(res_list_K4_OUT_COSA,hp)
-hp=resK4$hp
-res_list_K4_OUT=resK4$res_list
-
-## Caso 1: perc_out = 0.05 e qt = 0.95
-idx_95 <- which(hp$perc_out == 0.05 & hp$qt == 0.95)
-res_list_95 <- res_list_K4_OUT[idx_95]
-hp_95 <- hp[idx_95, ]
-
-## Caso 2: perc_out = 0.01 e qt = 0.99
-idx_99 <- which(hp$perc_out == 0.01 & hp$qt == 0.99)
-res_list_99 <- res_list_K4_OUT[idx_99]
-hp_99 <- hp[idx_99, ]
-
-out_95 <- analyze_results(res_list_95, hp_95, P = 10, K = 4,lambda_sel = 0)
-out_99 <- analyze_results(res_list_99, hp_99, P = 10, K = 4,lambda_sel = 0)
-
-#1000x300
-out_95$BAC_plot
-out_99$BAC_plot
-
-#1500X700
-out_95$heatmap_plot
-out_99$heatmap_plot
-
-out_95$time_summary
-out_99$time_summary
-
-out_v_95 <- analyze_v_truth_boxgrid(res_list_95, hp_95)
-#1000x800
-out_v_95$grid_plot
-
-
-out_v_99 <- analyze_v_truth_boxgrid(res_list_99, hp_99)
-out_v_99$grid_plot
+outK4_COSA <- summarize_COSA(res_list_K4_OUT_COSA, hp)
+outK4_COSA
