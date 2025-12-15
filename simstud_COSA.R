@@ -198,17 +198,13 @@ res_list_K4_OUT_COSA <- mclapply(seq_len(nrow(hp)), function(i) {
       seed = seed,
       zeta0 = zeta0,
       K = K,
-      lambda = lambda,
       TT = TT,
       P = P,
-      c = c,
       W = fit$W,
       s = est_s,
-      v = fit$v,
       truth = truth,
       ARI_s = ARI_s,
       BAC_s=BAC_s,
-      loss=fit$loss_vec,
       elapsed=fit$elapsed
     )
     
