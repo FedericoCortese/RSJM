@@ -1,8 +1,6 @@
 library(parallel)
 library(Rcpp)
 #library(gower)
-library(poliscidata)
-library(StatMatch)
 library(cluster)
 library(dplyr)
 library(tidyr)
