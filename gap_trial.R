@@ -5,8 +5,8 @@ TT=1000
 
 P=10
 
-K_grid=c(2,3,4)
-zeta0=c(0,.1,.2,.3,.4)
+K_grid=c(3,4)
+zeta0=c(0,.05,.1,.2)
 zeta0[1]=.01
 alpha=.1
 lambda=seq(0,1,.25)
@@ -39,31 +39,31 @@ simDat_sparse <- simulate_sparse_hmm(
 
 truth <- simDat_sparse$truth
 
-Y = as.matrix(simDat_sparse$Y)
-K_grid        = K_grid
-zeta0_grid    = zeta0
-lambda_grid   = lambda
-B             = 10
-parallel      = TRUE
-n_cores       = 9
-tol           = 1e-4
-n_init        = 1
-n_outer       = 50
-n_inner       = 5
-alpha         = 0.1
-verbose       = FALSE
-knn           = 10
-M             = NULL
-qt            = NULL
-c             = NULL
-mif           = NULL
-hd            = TRUE
-n_hd          = 500
-outlier       = FALSE
-truth         = NULL
-row_block     = NULL
-seed          = NULL
-
+# Y = as.matrix(simDat_sparse$Y)
+# K_grid        = K_grid
+# zeta0_grid    = zeta0
+# lambda_grid   = lambda
+# B             = 10
+# parallel      = TRUE
+# n_cores       = 9
+# tol           = 1e-4
+# n_init        = 1
+# n_outer       = 50
+# n_inner       = 5
+# alpha         = 0.1
+# verbose       = FALSE
+# knn           = 10
+# M             = NULL
+# qt            = NULL
+# c             = NULL
+# mif           = NULL
+# hd            = TRUE
+# n_hd          = 500
+# outlier       = FALSE
+# truth         = NULL
+# row_block     = NULL
+# seed          = NULL
+# 
 
 gap_temp=gap_robust_sparse_jump(
     Y=as.matrix(simDat_sparse$Y),
