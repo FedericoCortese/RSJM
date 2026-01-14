@@ -320,9 +320,6 @@ robust_sparse_jump <- function(Y,
   P  <- ncol(Y)
   TT <- nrow(Y)
   
-  library(Rcpp)
-  Rcpp::sourceCpp("robJM.cpp")
-  
   start <- Sys.time()
   Y     <- scale(Y)
   
@@ -395,10 +392,10 @@ robust_sparse_jump <- function(Y,
         s     <- Estep$s
         
         # 7) must have all K states or revert
-        if (length(unique(s)) < K) {
-          s <- s_old
-          break
-        }
+        # if (length(unique(s)) < K) {
+        #   s <- s_old
+        #   break
+        # }
         
         # 9) update W via WCD + exp
         Spk <- WCD(
@@ -526,6 +523,9 @@ robust_sparse_jump <- function(Y,
   return(ret_list)
 }
 
+
+
+# Cross-Validation --------------------------------------------------------
 
 cv_robust_sparse_jump <- function(
     Y,
@@ -774,179 +774,199 @@ cv_robust_sparse_jump <- function(
   return(results)
 }
 
-permute_gap <- function(Y) {
-  if (!is.matrix(Y)) {
-    stop("Input Y must be a matrix.")
-  }
-  TT <- nrow(Y)
-  P <- ncol(Y)
-  
-  Y_perm <- apply(Y, 2, function(col) {
-    sample(col, size = TT, replace = FALSE)
-  })
-  
-  if (P == 1) {
-    Y_perm <- matrix(Y_perm, nrow = T, ncol = 1)
-  }
-  
-  rownames(Y_perm) <- rownames(Y)
-  colnames(Y_perm) <- colnames(Y)
-  
-  return(Y_perm)
-}
 
-gap_robust_sparse_jump=function(
+# GAP ---------------------------------------------------------------------
+
+gap_robust_sparse_jump <- function(
     Y,
-    K_grid=NULL,
-    zeta0_grid=NULL,
-    lambda=0,
-    B=10,
-    parallel=F,
-    n_cores=NULL,
-    knn=10,
-    c=10,
-    M=NULL
-){
+    K_grid        = NULL,
+    zeta0_grid    = NULL,
+    lambda_grid   = NULL,
+    B             = 10,
+    parallel      = FALSE,
+    n_cores       = NULL,
+    tol           = 1e-4,
+    n_init        = 1,
+    n_outer       = 50,
+    n_inner       = 5,
+    alpha         = 0.1,
+    verbose       = FALSE,
+    knn           = 10,
+    M             = NULL,
+    qt            = NULL,
+    c             = NULL,
+    mif           = NULL,
+    hd            = FALSE,
+    n_hd          = 500,
+    outlier       = FALSE,
+    truth         = NULL,
+    row_block     = NULL,
+    seed          = NULL
+) {
   
-  # gap_robust_sparse_jump: Compute the Gap Statistic for Robust Sparse Jump Model
+  if (!is.null(seed)) set.seed(seed)
   
-  # Arguments:
-  #   Y           - data matrix (N × P)
-  #   K_grid      - vector of candidate numbers of states (default: seq(2, 4, by = 1))
-  #   zeta0_grid  - vector of candidate kappa values (default: seq(0.05, 0.4, by = 0.05))
-  #   lambda      - jump penalty value (default: 0.2)
-  #   B           - number of bootstrap samples (default: 10)
-  #   parallel    - logical; TRUE for parallel execution (default: FALSE)
-  #   n_cores     - number of cores to use for parallel execution (default: NULL)
-  #   knn         - number of nearest neighbors for LOF (default: 10)
-  #   c           - lower threshold for LOF (default: 5)
-  #   M           - upper threshold for LOF (default: NULL, uses median + mad)
+  if (is.null(K_grid))      K_grid <- seq(2, 4, by = 1)
+  if (is.null(zeta0_grid))  zeta0_grid <- seq(0.05, 0.4, 0.05)
+  if (is.null(lambda_grid)) lambda_grid <- 0
   
-  # Value:
-  #   A list containing:
-  #     gap_stats - data.frame with Gap Statistic results
-  #     plot_res  - ggplot object of Gap Statistic vs zeta0
-  #     meta_df   - data.frame with detailed results for each (K, zeta0, lambda, b)
-  
-  
-  if(is.null(K_grid)) {
-    K_grid <- seq(2, 4, by = 1)  # Default range for K
+  permute_rows <- function(X, L = NULL) {
+    T <- nrow(X)
+    if (is.null(L) || L <= 1 || L >= T) {
+      idx <- sample.int(T, T)
+      return(X[idx, , drop = FALSE])
+    }
+    starts <- seq(1, T, by = L)
+    blocks <- lapply(starts, function(s) s:min(s + L - 1, T))
+    ord <- sample(seq_along(blocks))
+    idx <- unlist(blocks[ord])
+    X[idx, , drop = FALSE]
   }
   
-  
-  if(is.null(zeta0_grid)) {
-    zeta0_grid <- seq(0.05,.4,.05)  # Default range for lambda
+  permute_cols_each_row <- function(X) {
+    X_star <- X
+    for (t in seq_len(nrow(X))) {
+      X_star[t, ] <- X[t, sample.int(ncol(X))]
+    }
+    X_star
   }
   
-  if(is.null(lambda)){
-    lambda=0.2
+  permute_gap <- function(X, L = row_block) {
+    permute_cols_each_row(permute_rows(X, L))
   }
   
-  # Libreria per ARI
-  library(mclust)
+  grid <- expand.grid(
+    zeta0  = zeta0_grid,
+    lambda = lambda_grid,
+    K      = K_grid,
+    b      = 0:B,
+    KEEP.OUT.ATTRS = FALSE,
+    stringsAsFactors = FALSE
+  )
   
-  N <- nrow(Y)
-  P <- ncol(Y)
-  
-  grid <- expand.grid(zeta0 = zeta0_grid, 
-                      lambda = lambda, 
-                      K = K_grid, 
-                      b = 0:B)
-  
-  gap_one_run=function(zeta0,lambda,K,b){
-    if (b == 0) {
+  gap_one_run <- function(zeta0, lambda, K, b) {
+    
+    permuted <- (b != 0)
+    
+    if (!permuted) {
       Y_input <- Y
-      permuted <- FALSE
     } else {
-      # Permute features for kappa
       Y_input <- permute_gap(Y)
-      permuted <- TRUE
     }
-    # Fit the model
     
-    fit=robust_sparse_jump(Y,
-                           zeta0=zeta0,
-                           lambda=lambda,
-                           K=K,
-                           tol     = NULL,
-                           n_init  = 5,
-                           n_outer = 20,
-                           alpha   = 0.1,
-                           verbose = FALSE,
-                           knn     = knn,
-                           c       = c,
-                           M       = M)
+    out <- tryCatch(
+      {
+        fit <- robust_sparse_jump(
+          Y_input,
+          zeta0   = zeta0,
+          lambda  = lambda,
+          K       = K,
+          tol     = tol,
+          n_init  = n_init,
+          n_outer = n_outer,
+          n_inner = n_inner,
+          alpha   = alpha,
+          verbose = verbose,
+          knn     = knn,
+          M       = M,
+          qt      = qt,
+          c       = c,
+          mif     = mif,
+          hd      = hd,
+          n_hd    = n_hd,
+          outlier = outlier,
+          truth   = truth
+        )
+        
+        data.frame(
+          ok       = TRUE,
+          err      = NA_character_,
+          loss     = as.numeric(fit$loss),
+          K        = as.integer(K),
+          zeta0    = as.numeric(zeta0),
+          lambda   = as.numeric(lambda),
+          permuted = as.logical(permuted),
+          b        = as.integer(b),
+          stringsAsFactors = FALSE
+        )
+      },
+      error = function(e) {
+        data.frame(
+          ok       = FALSE,
+          err      = conditionMessage(e),
+          loss     = NA_real_,
+          K        = as.integer(K),
+          zeta0    = as.numeric(zeta0),
+          lambda   = as.numeric(lambda),
+          permuted = as.logical(permuted),
+          b        = as.integer(b),
+          stringsAsFactors = FALSE
+        )
+      }
+    )
     
-    return(list(loss=fit$loss,
-                K=K,
-                permuted=permuted,
-                zeta0=zeta0,
-                lambda=lambda
-    ))
-    
+    out
   }
   
-  if(parallel){
-    if(is.null(n_cores)){
-      n_cores <- parallel::detectCores() - 1
-    }
-    results <- parallel::mclapply(seq_len(nrow(grid)), function(i) {
-      params <- grid[i, ]
-      gap_one_run(
-        zeta0 = params$zeta0,
-        lambda= params$lambda,
-        K     = params$K,
-        b     = params$b
-      )
-    }, mc.cores = mc_cores)
-  }
-  else{
+  if (parallel) {
+    if (is.null(n_cores)) n_cores <- max(1, parallel::detectCores() - 1)
+    results <- parallel::mclapply(
+      seq_len(nrow(grid)),
+      function(i) {
+        p <- grid[i, ]
+        gap_one_run(p$zeta0, p$lambda, p$K, p$b)
+      },
+      mc.cores = n_cores
+    )
+  } else {
     results <- lapply(seq_len(nrow(grid)), function(i) {
-      params <- grid[i, ]
-      gap_one_run(
-        zeta0 = params$zeta0,
-        lambda= params$lambda,
-        K     = params$K,
-        b     = params$b
-      )
+      p <- grid[i, ]
+      gap_one_run(p$zeta0, p$lambda, p$K, p$b)
     })
   }
   
-  meta_df <- do.call(rbind.data.frame, c(results, make.row.names = FALSE))
+  meta_df <- do.call(rbind, results)
   
-  library(dplyr)
-  gap_stats <- meta_df %>%
-    group_by(K, zeta0) %>%
-    summarise(
-      log_O = log(loss[!permuted]),
-      log_O_star_mean = mean(log(loss[permuted])),
-      se_log_O_star=sd(log(loss[permuted])),
-      GAP =  log_O - log_O_star_mean,
-      .groups = 'drop'
-    )
+  # calcolo GAP solo sui run andati a buon fine
+  meta_ok <- dplyr::as_tibble(meta_df) %>%
+    dplyr::filter(ok)
   
-  library(ggplot2)
+  # se mancano dei "b==0" (run osservati) per qualche gruppo, quel gruppo va escluso
+  gap_stats <- meta_ok %>%
+    dplyr::group_by(K, zeta0, lambda) %>%
+    dplyr::summarise(
+      # osservato: deve essere uno solo (b==0)
+      logW = {
+        lo <- loss[b == 0]
+        if (length(lo) != 1L) NA_real_ else log(lo)
+      },
+      # permutati: b=1,...,B (cioè b>0)
+      E_logWstar = {
+        ls <- loss[b > 0]
+        #if (length(ls) != B) NA_real_ else 
+          mean(log(ls),na.rm=T)
+      },
+      s = {
+        ls <- loss[b > 0]
+        #if (length(ls) != B) NA_real_ else 
+          sqrt(1 + 1 / B) * stats::sd(log(ls),na.rm=T)
+      },
+      GAP = E_logWstar - logW,
+      n_star = sum(b > 0),
+      ok_group = !is.na(logW) && !is.na(E_logWstar),
+      .groups = "drop"
+    ) %>%
+    dplyr::filter(ok_group) %>%
+    dplyr::select(-ok_group)
   
-  plot_res=ggplot(gap_stats, aes(x = zeta0, y = GAP, color = factor(K))) +
-    geom_line() +
-    geom_point() +
-    scale_color_discrete(name = "Number of clusters\n(K)") +
-    labs(
-      x = expression(kappa),
-      y = "Gap Statistic"
-    ) +
-    theme_minimal() +
-    theme(
-      plot.title = element_text(hjust = 0.5),
-      legend.position = "right"
-    )
   
-  return(list(gap_stats=gap_stats,
-              plot_res=plot_res,
-              meta_df=meta_df))
-  
-  
+  list(
+    gap_stats = as.data.frame(gap_stats),
+    meta_df   = as.data.frame(meta_df)
+  )
 }
+
+
 
 
 # robust_JM_COSA=function(Y,zeta0,lambda,K,tol,n_outer=20,alpha=.1,
@@ -1151,6 +1171,12 @@ gap_robust_sparse_jump=function(
 #   
 # }
 
+# Function to analyze sim results -----------------------------------------
+
+library(dplyr)
+library(ggplot2)
+library(patchwork)
+
 plot_W=function(W){
   library(reshape)
   df <- as.data.frame(W)
@@ -1176,11 +1202,6 @@ plot_W=function(W){
 
 
 
-# Function to analyze sim results -----------------------------------------
-
-library(dplyr)
-library(ggplot2)
-library(patchwork)
 #library(Cairo)
 analyze_results <- function(res_list, hp, P, K, 
                             label_size = 3.2,

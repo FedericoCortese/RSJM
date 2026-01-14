@@ -72,8 +72,6 @@ returns_all <- na.omit(diff(log(prices_all)))
 returns_ai  <- returns_all[, ai_assets]
 returns_mkt <- returns_all[, "Mkt", drop = FALSE]
 
-## 5. Volatilità rolling per ciascun asset AI
-
 ## 5. Volatilità rolling per ciascun asset AI (con rollapplyr) ----
 
 vol_ai <- returns_ai  # stessa struttura (date + colonne), poi sovrascriviamo
