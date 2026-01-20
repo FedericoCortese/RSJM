@@ -313,7 +313,8 @@ robust_sparse_jump <- function(Y,
                                hd      = FALSE,
                                n_hd    = 500,
                                outlier = TRUE,
-                               truth   = NULL) {
+                               truth   = NULL,
+                               ncores=NULL) {
   
   # ARGUMENTS
   # Y is a data matrix (TT x P)
@@ -335,6 +336,7 @@ robust_sparse_jump <- function(Y,
   # n_hd: number of samples for high-dimensional estimation
   # outlier: whether to use outlier detection (TRUE/FALSE)
   # truth : true states for ARI computation (optional)
+  # ncores: number of cores for parallel computation, each core runs one initialization: works only for Linux and Mac. If NULL, do not parallelize.
   
   # VALUE
   # A list with components:
@@ -504,7 +506,11 @@ robust_sparse_jump <- function(Y,
   }
   
   # run n_init times, pick the one with smallest loss
-  res_list <- lapply(seq_len(n_init), run_one)
+  if(!is.null(ncores)){
+    res_list <- mclapply(seq_len(n_init), run_one, mc.cores = ncores)
+  } else {
+    res_list <- lapply(seq_len(n_init), run_one)
+  }
   losses   <- vapply(res_list, `[[`, numeric(1), "loss")
   best_run <- res_list[[which.min(losses)]]
   
