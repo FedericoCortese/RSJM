@@ -315,6 +315,36 @@ robust_sparse_jump <- function(Y,
                                outlier = TRUE,
                                truth   = NULL) {
   
+  # ARGUMENTS
+  # Y is a data matrix (TT x P)
+  # zeta0: sparsity hyperparameter
+  # lambda: jump penalty
+  # K: number of states
+  # tol: tolerance for convergence
+  # n_init: number of random initializations
+  # n_outer: number of outer iterations
+  # n_inner: number of inner iterations
+  # alpha: zeta increase factor
+  # verbose: print progress
+  # knn: number of neighbors for LOF
+  # M: upper threshold for LOF
+  # qt: quantile for LOF
+  # c: lower threshold for LOF (input either this or qt)
+  # mif: most important feature index for state ordering (an integer between 1 and P)
+  # hd: high-dimensional estimation (TRUE/FALSE)
+  # n_hd: number of samples for high-dimensional estimation
+  # outlier: whether to use outlier detection (TRUE/FALSE)
+  # truth : true states for ARI computation (optional)
+  
+  # VALUE
+  # A list with components:
+  # W: K x P weight matrix
+  # s: estimated states (length TT)
+  # medoids: state medoids (K x P matrix)
+  # v: outlier weights (length TT)
+  # loss: final loss value
+  # loss_vec: data.frame with loss values per outer iteration
+  
   P  <- ncol(Y)
   TT <- nrow(Y)
   

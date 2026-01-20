@@ -5,7 +5,6 @@
 using namespace Rcpp;
 
 // helper to compute median of a std::vector<double>
-// includes the diagonal zero entry as in your R code
 double median_vec(std::vector<double>& v) {
   std::sort(v.begin(), v.end());
   int n = v.size();
@@ -48,13 +47,12 @@ NumericMatrix WCD(const IntegerVector& s,
     }
     int n = rows.size();
     if (n < 2) {
-      // leave wcd(ci-1, *) as zeros
       continue;
     }
     
     // for each dimension p
     for (int p = 0; p < P; ++p) {
-      // build the within‐cluster distance matrix for dimension p
+      // build the within‐cluster distance matrix for dimension p (Spk)
       NumericMatrix mat(n, n);
       for (int a = 0; a < n; ++a) {
         mat(a,a) = 0.0;
@@ -70,7 +68,6 @@ NumericMatrix WCD(const IntegerVector& s,
         for (int j = 0; j < n; ++j) tmp[j] = mat(a,j);
         sum_meds += median_vec(tmp);
       }
-      // average of the medians
       wcd(ci-1, p) = sum_meds / n;
     }
   }
@@ -106,9 +103,9 @@ NumericMatrix weight_inv_exp_dist(
   if (s.size() != T)
     stop("Length of s must equal nrow(Y)");
   
-  // 2) branch on whether medoids is provided
+  // branch on whether medoids is provided
   if (medoids.isNull()) {
-    // ——— full Y vs Y: return T×T symmetric matrix ———
+    //  full Y vs Y: return T×T symmetric matrix 
     NumericMatrix D(T, T);
     for (int i = 0; i < T; ++i) {
       for (int j = i + 1; j < T; ++j) {
@@ -127,7 +124,7 @@ NumericMatrix weight_inv_exp_dist(
     return D;
     
   } else {
-    // ——— Y vs medoids: return T×K matrix ———
+    //  Y vs medoids: return T×K matrix 
     IntegerVector med(medoids);
     int K = med.size();
     // convert to 0-based and validate
@@ -331,7 +328,7 @@ IntegerVector initialize_states(const NumericMatrix& Y,
       }
     }
     
-    // 2) Assign each point to nearest centroid
+    // Assign each point to nearest centroid
     // Compute distance Y->centroids via Dall
     double sum_intra = 0.0;
     IntegerVector assign(TT);
@@ -478,7 +475,7 @@ NumericVector v_1(const NumericMatrix& Y,
     }
   }
   
-  // --- compute c from quantile if not provided ---
+  // ompute c from quantile if not provided 
   std::vector<double> lof_clean;
   lof_clean.reserve(T);
   for (double v : lof_star)
@@ -572,10 +569,10 @@ Rcpp::List E_step(const NumericMatrix& loss_by_state,
         idx = j;
       }
     }
-    s[0] = idx + 1;  // store 1-based
+    s[0] = idx + 1;  
   }
   
-  // subsequent t = 1..T-1
+  // t = 1..T-1
   for (int t = 1; t < T; ++t) {
     int prev = s[t-1] - 1;  // zero-based
     double m = V(t, 0) + Gamma(prev, 0);
