@@ -11,7 +11,7 @@ zeta0[1]=.01
 alpha=.1
 lambda=seq(0,1,.25)
 
-# Fare prima delle prove a mano per capire i valori di c
+
 qt=c(.95,.99)
 perc_out=c(.05,.01)
 

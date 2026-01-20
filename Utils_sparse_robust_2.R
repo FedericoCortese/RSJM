@@ -131,7 +131,7 @@ sim_data_stud_t_overlap <- function(seed = 123,
   MU <- MU[ord, , drop = FALSE]
   Sigma <- Sigma[, , ord, drop = FALSE]
   
-  # --- Markov chain simulation ---
+  # Markov chain simulation 
   set.seed(seed)
   x <- numeric(TT)
   Q <- matrix(rep((1 - pers) / (Ktrue - 1), Ktrue * Ktrue), 
@@ -144,7 +144,7 @@ sim_data_stud_t_overlap <- function(seed = 123,
     x[i] <- sample(1:Ktrue, 1, prob = Q[x[i - 1], ])
   }
   
-  # --- Continuous variables simulation ---
+  #  Continuous variables simulation 
   SimData <- matrix(0, TT, P)
   set.seed(seed)
   for (k in 1:Ktrue) {
@@ -204,7 +204,7 @@ simulate_sparse_hmm <- function(Y,
                                 out_sigma  = 5,
                                 seed       = NULL) {
   # Y         : T x P data matrix or data.frame
-  # rel_      : list of length K; rel_[[k]] is a vector of features in state k
+  # rel_      : list of length K; rel_[[k]] is a vector of features important for state k
   # true_stat : integer vector length T with values in 1:K
   # perc_out  : fraction of rows to turn into outliers
   # out_sigma : sd of Gaussian noise added for outliers
@@ -477,7 +477,7 @@ robust_sparse_jump <- function(Y,
         break   # esce anche dal ciclo OUTER
       }
       
-      # 11) bump zeta
+      # 11) increase zeta
       zeta <- zeta + alpha * zeta0
       
       if (verbose && !converged) {
