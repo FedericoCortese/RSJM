@@ -2,8 +2,6 @@ library(scales)
 source("Utils_feat_weight_robust.R")
 
 
-TT=2000
-
 P=10
 
 zeta0=c(0,0.05,.1,.15,.20,.25,.3,.4,.5)
@@ -25,12 +23,12 @@ hp=expand.grid(
 
 ncores=9
 
-P <- 5; Ktrue <- 3; TT <- 1000
-a1 <- c(3, 1, 0.1, 0.1, 0.1)
-a2 <- c(0.1, 0.1, 3, 1, 0.1)
-a3 <- c(.1, 0.1, 1, 0.1, 3)
+Ktrue <- K; TT <- 1000
+a1 <- c(2, 1, 0.1, 0.1, 1,rep(.1,5))
+a2 <- c(0.1, 0.1, 2, 1, 1,rep(.1,5))
+a3 <- c(.1, 0.1, .1, 0.1, 1,rep(.1,5))
 a_list <- list(a1, a2,a3)
-mu_tilde_list <- list(rep(1, P), rep(1, P), rep(1, P))
+mu_tilde_list <- list(rep(1, P), rep(2, P), rep(3, P))
 Sigma_tilde_list <- list(diag(1, P), diag(1, P), diag(1, P))
 
 
@@ -47,9 +45,9 @@ res_list_K3 <- mclapply(seq_len(nrow(hp)), function(i) {
     P <- hp$P[i]
     K =hp$K[i]
     
-    simDat <- sim_hmm_SNR(seed = 123,
-                          TT = 200,
-                          P = 5,
+    simDat <- sim_hmm_SNR(seed = seed,
+                          TT = TT,
+                          P = P,
                           Ktrue = K,
                           a_list = a_list,            # list di lunghezza Ktrue, ciascuno vettore length P
                           mu_tilde_list = mu_tilde_list,     # list di base means
@@ -61,8 +59,27 @@ res_list_K3 <- mclapply(seq_len(nrow(hp)), function(i) {
     
     truth <- simDat$truth
     
+    Y = as.matrix(simDat$SimData)
+    
     fit <- feat_weight_jump(
-      Y = as.matrix(simDat$SimData),
+      Y = Y,
+      zeta0 = zeta0,
+      lambda = lambda,
+      K = K,
+      tol = NULL,
+      n_init = 1,
+      n_outer = 25,
+      n_inner=5,
+      alpha = 0.1,
+      verbose = T,
+      hd=F,
+      n_hd=NULL,
+      mif=5,
+      truth=truth
+    )
+    
+    fit <- feat_weight_jump(
+      Y = Y,
       zeta0 = zeta0,
       lambda = lambda,
       K = K,

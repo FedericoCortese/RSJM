@@ -316,8 +316,9 @@ sim_hmm_SNR <- function(seed = 123,
     A_k <- diag(a_k, nrow = P, ncol = P)
     Ainv_k <- diag(1 / a_k, nrow = P, ncol = P)
     
-    # Non perturbiamo la media
+    # Perturbiamo la media
     #mu_k_list[[k]] <- as.numeric(A_k %*% as.numeric(mu_tilde_list[[k]]))
+    # Non perturbiamo la media
     mu_k_list[[k]] <- mu_tilde_list[[k]]
     Sigma_k_list[[k]] <- Ainv_k %*% Sigma_tilde_list[[k]] %*% Ainv_k
     # simmetry
@@ -359,13 +360,14 @@ sim_hmm_SNR <- function(seed = 123,
 
 
 library(Rcpp)
-Rcpp::sourceCpp("robJM.cpp")
+#Rcpp::sourceCpp("robJM.cpp")
+Rcpp::sourceCpp("FWJM.cpp")
 
 tukey_biw=function(u,c=4.685){
-  if(u<=c){
+  if(abs(u)<=c){
     u=c^2*(1-(1-(u/c)^2)^3)/6
   }
-  else{
+  else if(abs(u)>c){
     u=c^2/6
   }
   return(u)
@@ -385,6 +387,20 @@ tukey_biw_matrix=function(A,c=4.685){
   A_final[indxa]=A_up_new
   
   return(A_final)
+}
+
+tukey_biw_vec <- function(u, c = 4.685) {
+  v <- abs(u)
+  out <- numeric(length(v))
+  
+  idx <- v <= c
+  if (any(idx)) {
+    w <- v[idx] / c
+    out[idx] <- (c^2 / 6) * (1 - (1 - w^2)^3)
+  }
+  if (any(!idx)) out[!idx] <- (c^2 / 6)
+  
+  out
 }
 
 
@@ -462,51 +478,82 @@ feat_weight_jump <- function(Y,
       
       for (inner in seq_len(n_inner)) {
         
-        if (hd) {
-          sel_idx  <- sort(sample(1:TT, n_hd, replace = FALSE))
-          Y_search <- Y[sel_idx, ]
-          Y_search <- as.matrix(Y_search)
-        } else {
-          Y_search <- as.matrix(Y)
-          sel_idx  <- 1:TT
-        }
+        # if (hd) {
+        #   sel_idx  <- sort(sample(1:TT, n_hd, replace = FALSE))
+        #   Y_search <- Y[sel_idx, ]
+        #   Y_search <- as.matrix(Y_search)
+        # } else {
+          # Y_search <- as.matrix(Y)
+          # sel_idx  <- 1:TT
+        # }
         
+        gows=gower_dist_array(Y,Y,scale="i")
+        
+        gows_sc=gows
+        # scale gows? For each dimension?
+        for(p in 1:P){
+          gows_sc[,,p]=scale(gows[,,p])
+        }
 
-# Tukey modification INSIDEW weight_inv?? ----------------------------------------------------------
-# Say, before multiplying for max(w_{s, p},w_{s', p})
-        
-        DW <- weight_inv_exp_dist(Y_search, s[sel_idx], W, zeta)
         if(tukey){
-          DW=tukey_biw_matrix(DW,c=4.685)
+          gows_biw <- tukey_biw_vec(gows_sc, c = 4.685)
+          dim(gows_biw) <- dim(gows_sc)
         }
+        
+        #gows_biw=abs(gows_biw)
+        
+        DW=weight_inv_exp_dist_2(gows_biw,s,W,zeta)
 
         pam_out <- cluster::pam(DW, k = K, diss = TRUE)
-        medoids <- sel_idx[pam_out$id.med]
+        #medoids <- sel_idx[pam_out$id.med]
+        medoids <- pam_out$id.med
         
         # 4) build loss-by-state
-        if (!hd) {
-          # TT x K
+        # if (!hd) {
+        #   # TT x K
 
-# TO CHANGE HERE ----------------------------------------------------------
-
-          
           loss_by_state <- DW[, medoids, drop = FALSE]
-        } else {
-          loss_by_state <- weight_inv_exp_dist(
-            Y        = as.matrix(Y * v),
-            s        = s,
-            W        = W,
-            zeta     = zeta,
-            medoids  = medoids
-          )
-        }
-        
+        # } else {
+        #   loss_by_state <- weight_inv_exp_dist(
+        #     Y        = as.matrix(Y * v),
+        #     s        = s,
+        #     W        = W,
+        #     zeta     = zeta,
+        #     medoids  = medoids
+        #   )
+        # }
+        # 
         s_old <- s
         
         Estep <- E_step(loss_by_state, Gamma)
         V     <- Estep$V
         s     <- Estep$s
         
+        # 5) DP forward: V[t,j] = loss[t,j] + min_i( V[t+1,i] + Gamma[i,j] )
+        # V <- loss_by_state
+        # #
+        # # # Input: V is TT x K, Gamma is KxK, s and s_old have length TT
+        # for (t in (TT-1):1) {
+        #   for (j in seq_len(K)) {
+        #     # look at row t+1 of V plus column j of Gamma:
+        #     V[t, j] <- loss_by_state[t, j] +
+        #       min( V[t+1, ] + Gamma[, j] )
+        #   }
+        # }
+        # #
+        # # # 6) backtrack to get s
+        #  s_old <- s
+        # # # first time‐point
+        # s[1] <- which.min(V[1, ])
+        # loss  <- V[1, s[1]]
+        # # # subsequent
+        # for (t in 2:TT) {
+        #   prev <- s[t-1]
+        #   # pick state j minimizing V[t,j] + penalty from prev
+        #   scores <- V[t, ] + Gamma[prev, ]
+        #   s[t] <- which.min(scores)
+        # }
+
         # 7) must have all K states or revert
         # if (length(unique(s)) < K) {
         #   s <- s_old
@@ -514,14 +561,26 @@ feat_weight_jump <- function(Y,
         # }
         
         # 9) update W via WCD + exp
-
-# TO CHANGE ---------------------------------------------------------------
-
-        Spk <- WCD(
-          s[sel_idx],
-          as.matrix(Y_search * v[sel_idx]),
-          K
-        )
+        # 
+        # Spk=matrix(0,nrow=K,ncol=P)
+        # for(p in 1:P){
+        #   for(k in 1:K){
+        #     temp=gows_biw[,,p]
+        #     Spk[k,p]=sum(temp[s==k,s==k])
+        #   }
+        # }
+        
+        idx_by_k <- lapply(seq_len(K), function(k) which(s == k))
+        
+        Spk <- vapply(seq_len(P), function(p) {
+          temp <- gows[, , p]
+          vapply(idx_by_k, function(idx) {
+            if (length(idx) > 1) sum(temp[idx, idx]) else 0
+          }, numeric(1))
+        }, numeric(K))
+        
+        # Sure?
+        Spk=Spk / as.numeric(table(s))^2
         
         wcd <- exp(-Spk / zeta0)
         W   <- wcd / rowSums(wcd)
@@ -581,7 +640,6 @@ feat_weight_jump <- function(Y,
       W        = W,
       s        = s,
       medoids  = medoids,
-      v        = v,
       loss     = loss,
       loss_vec = loss_vec[-1, ],
       ARI      = ARI
@@ -627,14 +685,10 @@ feat_weight_jump <- function(Y,
     W       = best_W,
     s       = new_best_s,
     medoids = best_medoids,
-    v       = best_v,
     loss    = best_loss,
     loss_vec = loss_vec,
     zeta0   = zeta0,
     lambda  = lambda,
-    c       = c,
-    knn     = knn,
-    M       = M,
     elapsed = end - start
   )
   
