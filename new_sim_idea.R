@@ -1,5 +1,5 @@
 
-sim_hmm_subspace <- function(seed = 123,
+sim_hmm_SNR <- function(seed = 123,
                              TT = 200,
                              P = 5,
                              Ktrue = 3,
@@ -28,7 +28,10 @@ sim_hmm_subspace <- function(seed = 123,
     a_k <- pmax(a_list[[k]], eps)                    
     A_k <- diag(a_k, nrow = P, ncol = P)
     Ainv_k <- diag(1 / a_k, nrow = P, ncol = P)
-    mu_k_list[[k]] <- as.numeric(A_k %*% as.numeric(mu_tilde_list[[k]]))
+    
+    # Non perturbiamo la media
+    #mu_k_list[[k]] <- as.numeric(A_k %*% as.numeric(mu_tilde_list[[k]]))
+    mu_k_list[[k]] <- mu_tilde_list[[k]]
     Sigma_k_list[[k]] <- Ainv_k %*% Sigma_tilde_list[[k]] %*% Ainv_k
     # simmetry
     Sigma_k_list[[k]] <- (Sigma_k_list[[k]] + t(Sigma_k_list[[k]])) / 2
