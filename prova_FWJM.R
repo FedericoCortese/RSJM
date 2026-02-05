@@ -6,16 +6,18 @@ source("Utils_feat_weight_robust.R")
 
 P=10
 
-zeta0=.2
+zeta0=.15
 lambda=.3
 
 K=3
 
 
 Ktrue <- K; TT <- 1000
-a1 <- c(2, 1.5, 0.1, 0.1, 1.5,2,rep(0.1,4))
-a2 <- c(0.1, 0.1, 2, 1.5, 1.5,1.5,rep(0.1,4))
-a3 <- c(.5, 0.1, .1, 0.1, 2,1.5,rep(0.1,4))
+# Feat 1 and 2 for state 1, feat 3 and 4 for state 2, feat 5 and 6 for state 3
+# all other features are noise
+a1 <- c(3, 1, 0.1, 0.1, 1,3,rep(0.1,4))
+a2 <- c(0.1, 0.1, 3, 1, 1,1,rep(0.1,4))
+a3 <- c(0.1, 0.1, 0.1, 0.1, 3,1,rep(0.1,4))
 a_list <- list(a1, a2,a3)
 mu_tilde_list <- list(rep(1, P), rep(2, P), rep(3, P))
 Sigma_tilde_list <- list(diag(1, P), diag(1, P), diag(1, P))
@@ -54,9 +56,9 @@ fit <- feat_weight_jump(
   verbose = T,
   hd=F,
   n_hd=NULL,
-  mif=5,
+  mif=5, # mif=5 ordina gli stati in base alle mediane condizionate della feat numero 5
   truth=truth,
-  ncores = 3
+  ncores = 3 # parallel only for Mac and Linux
 )
 
 
@@ -73,7 +75,7 @@ round(fit$W,2)
 
 P=25
 
-zeta0=.1
+zeta0=.125
 lambda=.3
 
 K=3
@@ -138,7 +140,7 @@ round(fit_25$W,2)
 
 P=10
 
-zeta0=.2
+zeta0=.15
 lambda=.3
 
 K=4
@@ -171,9 +173,6 @@ truth <- simDat$truth
 
 Y = as.matrix(simDat$SimData)
 
-x11()
-pairs(Y,col=truth)
-
 # Fit model
 fit_4 <- feat_weight_jump(
   Y = Y,
@@ -188,7 +187,7 @@ fit_4 <- feat_weight_jump(
   verbose = T,
   hd=F,
   n_hd=NULL,
-  mif=5,
+  mif=6,
   truth=truth,
   ncores = 3
 )
@@ -196,8 +195,6 @@ fit_4 <- feat_weight_jump(
 
 # Results
 table(fit_4$s,truth)
-
-library(clue)
 
 tab <- table(fit_4$s, truth)
 perm <- apply(tab, 1, which.max)
