@@ -389,18 +389,30 @@ tukey_biw_matrix=function(A,c=4.685){
   return(A_final)
 }
 
+# vettoriale: applica Tukey a vettore/matrice/array (preserva NA)
 tukey_biw_vec <- function(u, c = 4.685) {
   v <- abs(u)
   out <- numeric(length(v))
-  
   idx <- v <= c
   if (any(idx)) {
     w <- v[idx] / c
     out[idx] <- (c^2 / 6) * (1 - (1 - w^2)^3)
   }
   if (any(!idx)) out[!idx] <- (c^2 / 6)
-  
   out
+}
+
+# scala una matrice/slice secondo "m" (range) o "i" (IQR-based scaled)
+safe_scale_slice <- function(mat, scale = "m") {
+  if (scale == "m") {
+    r <- range(mat, na.rm = TRUE)
+    sc <- diff(r)
+    if (sc > 0) mat <- mat / sc
+  } else if (scale == "i") {
+    iq <- IQR(as.vector(mat), na.rm = TRUE)
+    if (iq > 0) mat <- (1.35 * mat) / iq
+  }
+  mat
 }
 
 
@@ -419,7 +431,8 @@ feat_weight_jump <- function(Y,
                                n_hd    = 500,
                                truth   = NULL,
                                ncores=NULL,
-                             tukey=TRUE) {
+                             tukey=TRUE,
+                             scale="i") {
   
   # ARGUMENTS
   # Y is a data matrix (TT x P)
@@ -452,6 +465,12 @@ feat_weight_jump <- function(Y,
   start <- Sys.time()
   Y     <- scale(Y)
   
+  feat_type=apply(Y,2,class)
+  cont_feat=which(feat_type=="numeric"|feat_type=="integer")
+  P_cont=length(cont_feat)
+  cat_ord_feat=which(feat_type=="factor"|feat_type=="ordinal")
+  P_cat_ord=length(cat_ord_feat)
+  
   Gamma <- lambda * (1 - diag(K))
   
   run_one <- function(init_id) {
@@ -469,8 +488,7 @@ feat_weight_jump <- function(Y,
     
     # s <- sample(1:K, TT, replace = TRUE)
 
-# TO CHECK  ---------------------------------------------------------------
-    s <- initialize_states(Y, K)
+    s <- initialize_states(Y, K,scale=scale)
     
     converged <- FALSE   # flag per fermare anche il ciclo esterno
     
@@ -478,31 +496,45 @@ feat_weight_jump <- function(Y,
       
       for (inner in seq_len(n_inner)) {
         
-        # if (hd) {
-        #   sel_idx  <- sort(sample(1:TT, n_hd, replace = FALSE))
-        #   Y_search <- Y[sel_idx, ]
-        #   Y_search <- as.matrix(Y_search)
-        # } else {
-          # Y_search <- as.matrix(Y)
-          # sel_idx  <- 1:TT
-        # }
+        dttp=array(data=NA,dim=c(TT,TT,P))
         
-        gows=gower_dist_array(Y,Y,scale="i")
-        
-        gows_sc=gows
-        # scale gows? For each dimension?
-        for(p in 1:P){
-          gows_sc[,,p]=scale(gows[,,p])
+        if(P_cont>0){
+          dttp_cont <- array(NA_real_, dim = c(TT, TT, P_cont))
+          
+          for (p_idx in seq_len(P_cont)) {
+            p <- cont_feat[p_idx]
+            x <- Y[, p]
+            
+            # 1) costruisci la matrice delle differenze
+            temp <- outer(x, x, "-")
+            
+            # 2) standardizza tramite MAD
+            sc_mad <- mad(x, constant = 1, na.rm = TRUE)  # constant=1 leaves sample MAD
+            if (sc_mad <= 0) sc_mad <- 1
+            temp <- temp / sc_mad
+            
+            # 3) Tukey 
+            temp_vec <- tukey_biw_vec(as.numeric(temp), c = 4.685)
+            dim(temp_vec) <- dim(temp)
+            temp <- temp_vec
+            
+            # 4) re-scale (m o i)
+            temp <- safe_scale_slice(temp, scale)
+            
+            dttp_cont[,,p_idx] <- temp
+          }
+          
+          dttp[,,cont_feat] <- dttp_cont
+          
         }
-
-        if(tukey){
-          gows_biw <- tukey_biw_vec(gows_sc, c = 4.685)
-          dim(gows_biw) <- dim(gows_sc)
+        
+        if(P_cat_ord>0){
+          gows=gower_dist_array(Y[,cat_ord_feat],Y[,cat_ord_feat],
+                                scale=scale)
+          dttp[,,cat_ord_feat]=gows
         }
         
-        #gows_biw=abs(gows_biw)
-        
-        DW=weight_inv_exp_dist_2(gows_biw,s,W,zeta)
+        DW=weight_inv_exp_dist_2(dttp,s,W,zeta)
 
         pam_out <- cluster::pam(DW, k = K, diss = TRUE)
         #medoids <- sel_idx[pam_out$id.med]
@@ -529,31 +561,6 @@ feat_weight_jump <- function(Y,
         V     <- Estep$V
         s     <- Estep$s
         
-        # 5) DP forward: V[t,j] = loss[t,j] + min_i( V[t+1,i] + Gamma[i,j] )
-        # V <- loss_by_state
-        # #
-        # # # Input: V is TT x K, Gamma is KxK, s and s_old have length TT
-        # for (t in (TT-1):1) {
-        #   for (j in seq_len(K)) {
-        #     # look at row t+1 of V plus column j of Gamma:
-        #     V[t, j] <- loss_by_state[t, j] +
-        #       min( V[t+1, ] + Gamma[, j] )
-        #   }
-        # }
-        # #
-        # # # 6) backtrack to get s
-        #  s_old <- s
-        # # # first time‐point
-        # s[1] <- which.min(V[1, ])
-        # loss  <- V[1, s[1]]
-        # # # subsequent
-        # for (t in 2:TT) {
-        #   prev <- s[t-1]
-        #   # pick state j minimizing V[t,j] + penalty from prev
-        #   scores <- V[t, ] + Gamma[prev, ]
-        #   s[t] <- which.min(scores)
-        # }
-
         # 7) must have all K states or revert
         # if (length(unique(s)) < K) {
         #   s <- s_old
@@ -573,13 +580,13 @@ feat_weight_jump <- function(Y,
         idx_by_k <- lapply(seq_len(K), function(k) which(s == k))
         
         Spk <- vapply(seq_len(P), function(p) {
-          temp <- gows[, , p]
+          temp <- dttp[, , p]
           vapply(idx_by_k, function(idx) {
             if (length(idx) > 1) sum(temp[idx, idx]) else 0
           }, numeric(1))
         }, numeric(K))
         
-        # Sure?
+        
         Spk=Spk / as.numeric(table(s))^2
         
         wcd <- exp(-Spk / zeta0)

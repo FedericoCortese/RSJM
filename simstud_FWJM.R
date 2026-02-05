@@ -24,9 +24,9 @@ hp=expand.grid(
 ncores=9
 
 Ktrue <- K; TT <- 1000
-a1 <- c(2, 1, 0.1, 0.1, 1,rep(.1,5))
-a2 <- c(0.1, 0.1, 2, 1, 1,rep(.1,5))
-a3 <- c(.1, 0.1, .1, 0.1, 1,rep(.1,5))
+a1 <- c(2, 1.5, 0.1, 0.1, 1.5,2,rep(0.1,4))
+a2 <- c(0.1, 0.1, 2, 1.5, 1.5,1.5,rep(0.1,4))
+a3 <- c(.5, 0.1, .1, 0.1, 2,1.5,rep(0.1,4))
 a_list <- list(a1, a2,a3)
 mu_tilde_list <- list(rep(1, P), rep(2, P), rep(3, P))
 Sigma_tilde_list <- list(diag(1, P), diag(1, P), diag(1, P))
@@ -67,15 +67,16 @@ res_list_K3 <- mclapply(seq_len(nrow(hp)), function(i) {
       lambda = lambda,
       K = K,
       tol = NULL,
-      n_init = 1,
+      n_init = 3,
       n_outer = 25,
-      n_inner=5,
+      n_inner=10,
       alpha = 0.1,
       verbose = T,
       hd=F,
       n_hd=NULL,
       mif=5,
-      truth=truth
+      truth=truth,
+      ncores = 3
     )
     
     fit <- feat_weight_jump(
