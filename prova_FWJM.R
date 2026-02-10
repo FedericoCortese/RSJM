@@ -69,6 +69,57 @@ adjustedRandIndex(fit$s,truth)
 
 round(fit$W,2)
 
+# Fit with no Tukey adj
+
+fit_no_rob <- feat_weight_jump(
+  Y = Y,
+  zeta0 = zeta0,
+  lambda = lambda,
+  K = K,
+  tol = NULL,
+  n_init = 3,
+  n_outer = 25,
+  n_inner=10,
+  alpha = 0.1,
+  verbose = T,
+  hd=F,
+  n_hd=NULL,
+  mif=5, # mif=5 ordina gli stati in base alle mediane condizionate della feat numero 5
+  truth=truth,
+  ncores = 3, # parallel only for Mac and Linux
+  tukey=F
+)
+
+table(fit_no_rob$s,truth)
+balanced_accuracy(fit_no_rob$s,truth)
+# 0.71 vs 0.93 of the previous
+
+# Fit with high zeta0
+
+fit_zeta1 <- feat_weight_jump(
+  Y = Y,
+  zeta0 = 1,
+  lambda = lambda,
+  K = K,
+  tol = NULL,
+  n_init = 3,
+  n_outer = 25,
+  n_inner=10,
+  alpha = 0.1,
+  verbose = T,
+  hd=F,
+  n_hd=NULL,
+  mif=5, # mif=5 ordina gli stati in base alle mediane condizionate della feat numero 5
+  truth=truth,
+  ncores = 3, # parallel only for Mac and Linux
+  tukey=T
+)
+
+table(fit_zeta1$s,truth)
+balanced_accuracy(fit_zeta1$s,truth)
+#0.83
+
+round(fit_zeta1$W,2)
 
 # P=25 K=3 ----------------------------------------------------------------
 

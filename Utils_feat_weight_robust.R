@@ -514,9 +514,15 @@ feat_weight_jump <- function(Y,
             temp <- temp / sc_mad
             
             # 3) Tukey 
-            temp_vec <- tukey_biw_vec(as.numeric(temp), c = 4.685)
-            dim(temp_vec) <- dim(temp)
-            temp <- temp_vec
+            if(tukey){
+              temp_vec <- tukey_biw_vec(as.numeric(temp), c = 4.685)
+              dim(temp_vec) <- dim(temp)
+              temp <- temp_vec
+            }
+            else{
+              # Direttamente in valore assoluto?
+              temp=abs(temp)
+            }
             
             # 4) re-scale (m o i)
             temp <- safe_scale_slice(temp, scale)
