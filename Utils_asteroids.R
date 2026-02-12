@@ -201,3 +201,59 @@ compute_feat <- function(x,
   
   return(x[ , matched_cols])
 }
+
+circular_moving_average <- function(theta, k = 13) {
+  if (k %% 2 == 0) stop("k deve essere dispari per finestra centrata.")
+  
+  library(zoo)
+  
+  C_center <- rollapply(cos(theta), width = k, FUN = mean,
+                        align = "center", fill = NA)
+  S_center <- rollapply(sin(theta), width = k, FUN = mean,
+                        align = "center", fill = NA)
+  
+  theta_center <- atan2(S_center, C_center)
+  R_center <- sqrt(C_center^2 + S_center^2)
+  
+  return(list(
+    theta_smooth = theta_center,
+    R = R_center
+  ))
+}
+
+circular_moving_variance <- function(theta, k = 13, na.rm = FALSE) {
+  if (k %% 2 == 0) stop("k deve essere dispari per finestra centrata.")
+  if (!is.numeric(theta)) stop("theta deve essere un vettore numerico (radianti).")
+  if (length(theta) < k) stop("La serie theta è più corta della finestra k.")
+  
+  # calcola C e S come nella moving average centrata
+  C_center <- rollapply(cos(theta), width = k, FUN = mean, align = "center", fill = NA)
+  S_center <- rollapply(sin(theta), width = k, FUN = mean, align = "center", fill = NA)
+  
+  # lunghezza risultante R (0..1)
+  R_center <- sqrt(C_center^2 + S_center^2)
+  
+  # varianza circolare: 1 - R
+  V_center <- 1 - R_center
+  
+  # deviazione standard circolare: sqrt(-2 log R)
+  # gestione numerica: se R <= 0 -> Inf; se R is NA -> NA
+  circ_sd <- rep(NA_real_, length(R_center))
+  valid <- !is.na(R_center)
+  # per stabilità numerica, limitare R a (eps, 1]
+  eps <- .Machine$double.eps
+  Rclip <- pmax(R_center[valid], eps)
+  circ_sd[valid] <- sqrt(pmax(-2 * log(Rclip), 0))
+  
+  if (na.rm) {
+    # opzionale: sostituisci NA ai bordi con valori calcolati su finestre parziali
+    # (approccio semplice: calcola rollapply con partial windows usando zoo::rollapplyr)
+    warning("na.rm = TRUE: comportamento ai bordi non completamente implementato; considera imputare prima.")
+  }
+  
+  return(list(
+    R = R_center,        # lunghezza risultante (0..1)
+    circular_variance = V_center,  # 1 - R
+    circular_sd = circ_sd          # deviazione standard circolare (radianti)
+  ))
+}

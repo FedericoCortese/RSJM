@@ -427,8 +427,6 @@ feat_weight_jump <- function(Y,
                                alpha   = 0.1,
                                verbose = FALSE,
                                mif     = NULL,
-                               hd      = FALSE,
-                               n_hd    = 500,
                                truth   = NULL,
                                ncores=NULL,
                              tukey=TRUE,
@@ -446,8 +444,6 @@ feat_weight_jump <- function(Y,
   # alpha: zeta increase factor
   # verbose: print progress
   # mif: most important feature index for state ordering (an integer between 1 and P)
-  # hd: high-dimensional estimation (TRUE/FALSE)
-  # n_hd: number of samples for high-dimensional estimation
   # truth : true states for ARI computation (optional)
   # ncores: number of cores for parallel computation, each core runs one initialization: works only for Linux and Mac. If NULL, do not parallelize.
   
@@ -546,21 +542,8 @@ feat_weight_jump <- function(Y,
         #medoids <- sel_idx[pam_out$id.med]
         medoids <- pam_out$id.med
         
-        # 4) build loss-by-state
-        # if (!hd) {
-        #   # TT x K
-
           loss_by_state <- DW[, medoids, drop = FALSE]
-        # } else {
-        #   loss_by_state <- weight_inv_exp_dist(
-        #     Y        = as.matrix(Y * v),
-        #     s        = s,
-        #     W        = W,
-        #     zeta     = zeta,
-        #     medoids  = medoids
-        #   )
-        # }
-        # 
+        
         s_old <- s
         
         Estep <- E_step(loss_by_state, Gamma)
@@ -571,16 +554,6 @@ feat_weight_jump <- function(Y,
         # if (length(unique(s)) < K) {
         #   s <- s_old
         #   break
-        # }
-        
-        # 9) update W via WCD + exp
-        # 
-        # Spk=matrix(0,nrow=K,ncol=P)
-        # for(p in 1:P){
-        #   for(k in 1:K){
-        #     temp=gows_biw[,,p]
-        #     Spk[k,p]=sum(temp[s==k,s==k])
-        #   }
         # }
         
         idx_by_k <- lapply(seq_len(K), function(k) which(s == k))
