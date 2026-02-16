@@ -6,41 +6,36 @@ source("Utils_feat_weight_robust.R")
 
 P=10
 
-zeta0=.15
+zeta0=.1
 lambda=.3
 
 K=3
 
 
-Ktrue <- K; TT <- 1000
-# Feat 1 and 2 for state 1, feat 3 and 4 for state 2, feat 5 and 6 for state 3
-# all other features are noise
-a1 <- c(3, 1, 0.1, 0.1, 1,3,rep(0.1,4))
-a2 <- c(0.1, 0.1, 3, 1, 1,1,rep(0.1,4))
-a3 <- c(0.1, 0.1, 0.1, 0.1, 3,1,rep(0.1,4))
-a_list <- list(a1, a2,a3)
-mu_tilde_list <- list(rep(1, P), rep(2, P), rep(3, P))
-Sigma_tilde_list <- list(diag(1, P), diag(1, P), diag(1, P))
+W=matrix(c(1,1,.5,0,0,0,0,0,0,0,
+           1,0,1,1,0,0,0,0,0,0,
+           .5,.5,0,.5,.5,0,0,0,0,0),byrow = T,nrow=3)
 
-seed=123
+TT=1000
 
-# Sim data
-simDat <- sim_hmm_SNR(seed = seed,
-                      TT = TT,
-                      P = P,
-                      Ktrue = K,
-                      a_list = a_list,            # list di lunghezza Ktrue, ciascuno vettore length P
-                      mu_tilde_list = mu_tilde_list,     # list di base means
-                      Sigma_tilde_list = Sigma_tilde_list,  # list di base covariance matrices
-                      pers = 0.95,
-                      eps = 1e-6)
+P=10
+outlier_frac=0.05
+
+simDat <- sim_data_stud_t_FWJM(seed = 123,
+                               TT = TT,
+                               P = P,
+                               Ktrue = K,
+                               mu = 3,
+                               rho = 0.2,
+                               nu = 4,
+                               pers = .95,
+                               W = W,
+                               outlier_frac = outlier_frac,
+                               Out_bound = 100)
 
 
-
-truth <- simDat$truth
-
+truth=simDat$mchain
 Y = as.matrix(simDat$SimData)
-
 
 # Fit model
 fit <- feat_weight_jump(
@@ -49,16 +44,13 @@ fit <- feat_weight_jump(
   lambda = lambda,
   K = K,
   tol = NULL,
-  n_init = 3,
+  n_init = 1,
   n_outer = 25,
   n_inner=10,
   alpha = 0.1,
   verbose = T,
-  hd=F,
-  n_hd=NULL,
-  mif=5, # mif=5 ordina gli stati in base alle mediane condizionate della feat numero 5
-  truth=truth,
-  ncores = 3 # parallel only for Mac and Linux
+  mif=1, # mif=1 ordina gli stati in base alle mediane condizionate della feat numero 1
+  truth=truth
 )
 
 
@@ -82,8 +74,6 @@ fit_no_rob <- feat_weight_jump(
   n_inner=10,
   alpha = 0.1,
   verbose = T,
-  hd=F,
-  n_hd=NULL,
   mif=5, # mif=5 ordina gli stati in base alle mediane condizionate della feat numero 5
   truth=truth,
   ncores = 3, # parallel only for Mac and Linux

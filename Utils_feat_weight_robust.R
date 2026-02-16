@@ -354,6 +354,116 @@ sim_hmm_SNR <- function(seed = 123,
   ))
 }
 
+sim_data_stud_t_FWJM <- function(seed = 123,
+                                 TT,
+                                 P,
+                                 Pcat = NULL,
+                                 Ktrue = 3,
+                                 mu = 3,
+                                 rho = 0,
+                                 nu = 4,
+                                 phi = .8,
+                                 pers = .95,
+                                 W = NULL,
+                                 outlier_frac = 0,
+                                 Out_bound = 100) {
+  
+  if (is.null(W)) {
+    W <- matrix(1, Ktrue, P)
+  }
+  
+  set.seed(seed)
+  
+  # state means base levels
+  MU <- seq(-mu, mu, length.out = Ktrue)
+  
+  # Markov chain
+  x <- numeric(TT)
+  
+  Q <- matrix((1 - pers) / (Ktrue - 1),
+              nrow = Ktrue,
+              ncol = Ktrue)
+  
+  diag(Q) <- pers
+  
+  init <- rep(1 / Ktrue, Ktrue)
+  
+  x[1] <- sample(1:Ktrue, 1, prob = init)
+  
+  for (i in 2:TT) {
+    x[i] <- sample(1:Ktrue, 1, prob = Q[x[i - 1], ])
+  }
+  
+  # Covariance
+  Sigma <- matrix(rho, ncol = P, nrow = P)
+  diag(Sigma) <- 1
+  
+  # scale adjustment so Var = Sigma
+  Sigma_t <- (nu - 2) / nu * Sigma
+  
+  SimData <- matrix(0, TT, P)
+  
+  # Simulate by state
+  for (k in 1:Ktrue) {
+    
+    # state-specific mean vector
+    delta_k <- MU[k] * W[k, ]
+    
+    u_k <- mvtnorm::rmvt(
+      n = TT,
+      sigma = Sigma_t,
+      df = nu,
+      delta = delta_k
+    )
+    
+    idx <- which(x == k)
+    
+    if (length(idx) > 0)
+      SimData[idx, ] <- u_k[idx, ]
+  }
+  
+  # OUTLIER CONTAMINATION
+  if (outlier_frac > 0) {
+    
+    n_out <- ceiling(TT * outlier_frac)
+    
+    idx_out <- sample(seq_len(TT), n_out)
+    
+    SimData[idx_out, ] <-
+      matrix(runif(n_out * P, -Out_bound, Out_bound),
+             nrow = n_out,
+             ncol = P)
+  }
+  
+  SimData <- as.data.frame(SimData)
+  
+  # Optional categorical
+  if (!is.null(Pcat)) {
+    
+    for (j in 1:Pcat) {
+      SimData[, j] <- get_cat_t(
+        SimData[, j],
+        x,
+        MU,
+        phi = phi,
+        df = nu
+      )
+      SimData[, j] <- factor(SimData[, j], levels = 1:Ktrue)
+    }
+  }
+  
+  return(list(
+    SimData = SimData,
+    mchain = x,
+    TT = TT,
+    P = P,
+    K = Ktrue,
+    Ktrue = Ktrue,
+    pers = pers,
+    seed = seed,
+    W = W
+  ))
+}
 
 # Estimation --------------------------------------------------------------
 
@@ -493,41 +603,51 @@ feat_weight_jump <- function(Y,
       for (inner in seq_len(n_inner)) {
         
         dttp=array(data=NA,dim=c(TT,TT,P))
-        
+        # 
+        # if(P_cont>0){
+        #   dttp_cont <- array(NA_real_, dim = c(TT, TT, P_cont))
+        #   
+        #   for (p_idx in seq_len(P_cont)) {
+        #     p <- cont_feat[p_idx]
+        #     x <- Y[, p]
+        #     
+        #     # 1) costruisci la matrice delle differenze
+        #     temp <- outer(x, x, "-")
+        #     
+        #     # 2) standardizza tramite MAD
+        #     sc_mad <- mad(x, constant = 1, na.rm = TRUE)  # constant=1 leaves sample MAD
+        #     if (sc_mad <= 0) sc_mad <- 1
+        #     temp <- temp / sc_mad
+        #     temp=abs(temp)
+        #     
+        #     # 3) Tukey 
+        #     if(tukey){
+        #       #temp_vec_old <- tukey_biw_vec(as.numeric(temp), c = 4.685)
+        #       temp_vec=tukey_biw_vec_cpp(as.numeric(temp), 4.685)
+        #       dim(temp_vec) <- dim(temp)
+        #       temp <- temp_vec
+        #     }
+        #     
+        #     # 4) re-scale (m o i)
+        #     #temp_old <- safe_scale_slice(temp, scale)
+        #     temp=safe_scale_slice_median_cpp(temp,scale=scale)
+        #     
+        #     dttp_cont[,,p_idx] <- temp
+        #     
+        #   }
+        #   
+        #   dttp[,,cont_feat] <- dttp_cont
+        #   
+        # }
         if(P_cont>0){
-          dttp_cont <- array(NA_real_, dim = c(TT, TT, P_cont))
-          
-          for (p_idx in seq_len(P_cont)) {
-            p <- cont_feat[p_idx]
-            x <- Y[, p]
-            
-            # 1) costruisci la matrice delle differenze
-            temp <- outer(x, x, "-")
-            
-            # 2) standardizza tramite MAD
-            sc_mad <- mad(x, constant = 1, na.rm = TRUE)  # constant=1 leaves sample MAD
-            if (sc_mad <= 0) sc_mad <- 1
-            temp <- temp / sc_mad
-            
-            # 3) Tukey 
-            if(tukey){
-              temp_vec <- tukey_biw_vec(as.numeric(temp), c = 4.685)
-              dim(temp_vec) <- dim(temp)
-              temp <- temp_vec
-            }
-            else{
-              # Direttamente in valore assoluto?
-              temp=abs(temp)
-            }
-            
-            # 4) re-scale (m o i)
-            temp <- safe_scale_slice(temp, scale)
-            
-            dttp_cont[,,p_idx] <- temp
-          }
-          
-          dttp[,,cont_feat] <- dttp_cont
-          
+        dttp_cont <- compute_dttp_cpp(
+          Y,
+          cont_feat = as.integer(cont_feat),
+          tukey = TRUE,
+          scale = scale
+        )
+        
+        dttp[,,cont_feat] <- dttp_cont
         }
         
         if(P_cat_ord>0){
@@ -542,7 +662,7 @@ feat_weight_jump <- function(Y,
         #medoids <- sel_idx[pam_out$id.med]
         medoids <- pam_out$id.med
         
-          loss_by_state <- DW[, medoids, drop = FALSE]
+        loss_by_state <- DW[, medoids, drop = FALSE]
         
         s_old <- s
         
@@ -575,21 +695,25 @@ feat_weight_jump <- function(Y,
           zeta0 * sum(W * log(W)) +
           lambda * sum(s[-1] != s[-TT])
         
-        # Loss convergence
-        if (!is.null(tol) && abs(loss - loss_old) < tol) {
-          #converged <- TRUE
-          break      # esce dal ciclo INNER
-        }
-        loss_old <- loss
-        
-        # 10) W‐convergence as in Kampert 2017
         epsW <- sum(abs(W - W_old))
-        if (!is.null(tol) && epsW < tol) {
-          converged <- TRUE
-          break      # esce dal ciclo INNER
+        
+        # Loss convergence
+        if (!is.null(tol)) {
+          
+          delta_loss <- abs(loss - loss_old)
+          
+          loss_old <- loss
+          
+          if (delta_loss < tol && epsW < tol) {
+            converged <- TRUE
+            break
+          }
         }
+        
         W_old <- W
+        #print(inner)
       } # fine ciclo inner
+     
       
       if (!is.null(truth)) {
         ARI <- mclust::adjustedRandIndex(truth, s)
@@ -620,6 +744,7 @@ feat_weight_jump <- function(Y,
         # cat(sprintf("init %2d, outer %2d → loss=%.4e, epsW=%.4e, zeta=%.3f, BAC=%.4f\n",
         #             init_id, outer, loss, epsW, zeta, BAC))
       }
+      #print(outer)
     } # fine ciclo outer
     
     list(

@@ -1,54 +1,109 @@
+mu1=c(-3,-3,-3,-1.5,-1.5,-1.5,0,0,0,0)
+mu2=rep(0,10)
+mu3=abs(mu1)
 
-sim_hmm_SNR <- function(seed = 123,
-                             TT = 200,
-                             P = 5,
-                             Ktrue = 3,
-                             a_list = NULL,            # list di lunghezza Ktrue, ciascuno vettore length P
-                             mu_tilde_list = NULL,     # list di base means
-                             Sigma_tilde_list = NULL,  # list di base covariance matrices
-                             pers = 0.95,
-                             eps = 1e-6) {
+# Outlier
+Y[sample(nrow(Y),nrow(Y)*0.05),]=runif(nrow(Y)*0.05*ncol(Y),-100,100)
+
+
+
+sim_data_stud_t_FWJM <- function(seed = 123,
+                            TT,
+                            P,
+                            Pcat = NULL,
+                            Ktrue = 3,
+                            mu = 3,
+                            rho = 0,
+                            nu = 4,
+                            phi = .8,
+                            pers = .95,
+                            W = NULL,
+                            outlier_frac = 0,
+                            Out_bound = 100) {
+  
+  if (is.null(W)) {
+    W <- matrix(1, Ktrue, P)
+  }
   
   set.seed(seed)
   
-  #persistenza
-  Q <- matrix((1 - pers) / (Ktrue - 1), nrow = Ktrue, ncol = Ktrue)
-  diag(Q) <- rep(pers, Ktrue)
+  # state means base levels
+  MU <- seq(-mu, mu, length.out = Ktrue)
   
-  x <- integer(TT)
-  init_prob <- rep(1 / Ktrue, Ktrue)
-  x[1] <- sample.int(Ktrue, size = 1, prob = init_prob)
-  for (t in 2:TT) {
-    x[t] <- sample.int(Ktrue, size = 1, prob = Q[x[t - 1], ])
+  # Markov chain
+  x <- numeric(TT)
+  
+  Q <- matrix((1 - pers) / (Ktrue - 1),
+              nrow = Ktrue,
+              ncol = Ktrue)
+  
+  diag(Q) <- pers
+  
+  init <- rep(1 / Ktrue, Ktrue)
+  
+  x[1] <- sample(1:Ktrue, 1, prob = init)
+  
+  for (i in 2:TT) {
+    x[i] <- sample(1:Ktrue, 1, prob = Q[x[i - 1], ])
   }
   
-  mu_k_list <- vector("list", Ktrue)
-  Sigma_k_list <- vector("list", Ktrue)
-  for (k in seq_len(Ktrue)) {
-    a_k <- pmax(a_list[[k]], eps)                    
-    A_k <- diag(a_k, nrow = P, ncol = P)
-    Ainv_k <- diag(1 / a_k, nrow = P, ncol = P)
+  # Covariance
+  Sigma <- matrix(rho, ncol = P, nrow = P)
+  diag(Sigma) <- 1
+  
+  # scale adjustment so Var = Sigma
+  Sigma_t <- (nu - 2) / nu * Sigma
+  
+  SimData <- matrix(0, TT, P)
+  
+  # Simulate by state
+  for (k in 1:Ktrue) {
     
-    # Non perturbiamo la media
-    #mu_k_list[[k]] <- as.numeric(A_k %*% as.numeric(mu_tilde_list[[k]]))
-    mu_k_list[[k]] <- mu_tilde_list[[k]]
-    Sigma_k_list[[k]] <- Ainv_k %*% Sigma_tilde_list[[k]] %*% Ainv_k
-    # simmetry
-    Sigma_k_list[[k]] <- (Sigma_k_list[[k]] + t(Sigma_k_list[[k]])) / 2
+    # state-specific mean vector
+    delta_k <- MU[k] * W[k, ]
+    
+    u_k <- mvtnorm::rmvt(
+      n = TT,
+      sigma = Sigma_t,
+      df = nu,
+      delta = delta_k
+    )
+    
+    idx <- which(x == k)
+    
+    if (length(idx) > 0)
+      SimData[idx, ] <- u_k[idx, ]
   }
   
-  # Simulazione osservazioni
-  Y <- matrix(NA_real_, nrow = TT, ncol = P)
-  for (k in seq_len(Ktrue)) {
-    Y_k <- mvtnorm::rmvnorm(n = TT, mean = mu_k_list[[k]], sigma = Sigma_k_list[[k]])
-    idx_k <- which(x == k)
-    if (length(idx_k) > 0) {
-      Y[idx_k, ] <- Y_k[idx_k, , drop = FALSE]
+  # OUTLIER CONTAMINATION
+  if (outlier_frac > 0) {
+    
+    n_out <- ceiling(TT * outlier_frac)
+    
+    idx_out <- sample(seq_len(TT), n_out)
+    
+    SimData[idx_out, ] <-
+      matrix(runif(n_out * P, -Out_bound, Out_bound),
+             nrow = n_out,
+             ncol = P)
+  }
+  
+  SimData <- as.data.frame(SimData)
+  
+  # Optional categorical
+  if (!is.null(Pcat)) {
+    
+    for (j in 1:Pcat) {
+      SimData[, j] <- get_cat_t(
+        SimData[, j],
+        x,
+        MU,
+        phi = phi,
+        df = nu
+      )
+      SimData[, j] <- factor(SimData[, j], levels = 1:Ktrue)
     }
   }
-  
-  colnames(Y) <- paste0("y", seq_len(P))
-  SimData <- as.data.frame(Y)
   
   return(list(
     SimData = SimData,
@@ -56,64 +111,9 @@ sim_hmm_SNR <- function(seed = 123,
     TT = TT,
     P = P,
     K = Ktrue,
-    a_list = a_list,
-    mu_tilde_list = mu_tilde_list,
-    Sigma_tilde_list = Sigma_tilde_list,
-    mu_k_list = mu_k_list,
-    Sigma_k_list = Sigma_k_list,
+    Ktrue = Ktrue,
     pers = pers,
-    seed = seed
+    seed = seed,
+    W = W
   ))
 }
-
-P <- 5; Ktrue <- 3; TT <- 1000
-a1 <- c(3, 1, 0.1, 0.1, 0.1)
-a2 <- c(0.1, 0.1, 3, 1, 0.1)
-a3 <- c(.1, 0.1, 1, 0.1, 3)
-a_list <- list(a1, a2,a3)
-mu_tilde_list <- list(rep(1, P), rep(1, P), rep(1, P))
-Sigma_tilde_list <- list(diag(1, P), diag(1, P), diag(1, P))
-
-res <- sim_hmm_subspace(seed = 123,
-                        TT = TT,
-                        P = P,
-                        Ktrue = Ktrue,
-                        a_list = a_list,
-                        mu_tilde_list = mu_tilde_list,
-                        Sigma_tilde_list = Sigma_tilde_list,
-                        pers = 0.95)
-
-x11()
-par(mfrow=c(2,3))
-plot(res$SimData$y1,col=res$mchain)
-plot(res$SimData$y2,col=res$mchain)
-plot(res$SimData$y3,col=res$mchain)
-plot(res$SimData$y4,col=res$mchain)
-plot(res$SimData$y5,col=res$mchain)
-par(mfrow=c(1,1))
-
-source("Utils_sparse_robust_2.R")
- 
-
-fit=robust_sparse_jump(Y=res$SimData,
-                                   zeta0=.2,
-                                   lambda=.5,
-                                   K=3,
-                                   tol     = 1e-16,
-                                   n_init  = 5,
-                                   n_outer = 20,
-                                   n_inner = 10,
-                                   alpha   = 0.1,
-                                   verbose = F,
-                                   knn     = 10,
-                                   M       = NULL,
-                                   qt      = NULL,
-                                   c       = NULL,
-                                   mif     = 3,
-                                   hd      = FALSE,
-                                   n_hd    = 500,
-                                   outlier = F,
-                                   truth   = NULL,
-                                   ncores=6)
-
-round(fit$W,3)

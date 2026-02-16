@@ -1,7 +1,9 @@
 #include <Rcpp.h>
 #include <algorithm>
+#include <vector>
 #include <cmath>
 #include <set>
+#include <cmath>
 using namespace Rcpp;
 
 // helper to compute median of a std::vector<double>
@@ -771,3 +773,301 @@ Rcpp::List E_step(const NumericMatrix& loss_by_state,
     Rcpp::Named("V") = V
   );
 }
+
+// restituisce Q1 e Q3 usando median-halves
+void median_halves_q1q3(const std::vector<double>& vals, double &q1, double &q3) {
+  std::vector<double> v = vals;            // copia per ordinare
+  std::sort(v.begin(), v.end());
+  int n = v.size();
+  if (n == 0) {
+    q1 = R_NaReal;
+    q3 = R_NaReal;
+    return;
+  }
+  int half = n / 2;
+  // costruisci lower e upper secondo la regola "median-halves"
+  std::vector<double> lower, upper;
+  if (n % 2 == 0) {
+    // even: lower = v[0..half-1], upper = v[half..n-1]
+    lower.assign(v.begin(), v.begin() + half);
+    upper.assign(v.begin() + half, v.end());
+  } else {
+    // odd: exclude median at index half
+    // lower = v[0..half-1], upper = v[half+1..n-1]
+    lower.assign(v.begin(), v.begin() + half);
+    upper.assign(v.begin() + half + 1, v.end());
+  }
+  
+  if (lower.empty()) q1 = R_NaReal; else q1 = median_vec(lower);
+  if (upper.empty()) q3 = R_NaReal; else q3 = median_vec(upper);
+}
+
+// tukey versione C++ (già fornita prima)
+// [[Rcpp::export]]
+Rcpp::NumericVector tukey_biw_vec_cpp(Rcpp::NumericVector u, double c = 4.685) {
+  int n = u.size();
+  Rcpp::NumericVector out(n);
+  double c2_over6 = (c * c) / 6.0;
+  
+  for (int i = 0; i < n; ++i) {
+    if (Rcpp::NumericVector::is_na(u[i])) {
+      out[i] = NA_REAL;
+    } else {
+      double v = std::abs(u[i]);
+      if (v <= c) {
+        double w = v / c;
+        double tmp = 1.0 - w * w;
+        out[i] = c2_over6 * (1.0 - tmp * tmp * tmp);
+      } else {
+        out[i] = c2_over6;
+      }
+    }
+  }
+  return out;
+}
+
+// safe_scale_slice che usa median-halves per "i"
+// [[Rcpp::export]]
+Rcpp::NumericMatrix safe_scale_slice_median_cpp(Rcpp::NumericMatrix mat, std::string scale = "m") {
+  int nr = mat.nrow();
+  int nc = mat.ncol();
+  Rcpp::NumericMatrix out = Rcpp::clone(mat);
+  
+  if (scale == "m") {
+    double minv = R_PosInf;
+    double maxv = R_NegInf;
+    bool any_non_na = false;
+    for (int i = 0; i < nr; ++i) {
+      for (int j = 0; j < nc; ++j) {
+        double val = mat(i, j);
+        if (!Rcpp::NumericVector::is_na(val)) {
+          any_non_na = true;
+          if (val < minv) minv = val;
+          if (val > maxv) maxv = val;
+        }
+      }
+    }
+    if (!any_non_na) return out;
+    double sc = maxv - minv;
+    if (sc > 0 && R_finite(sc)) {
+      for (int i = 0; i < nr; ++i) {
+        for (int j = 0; j < nc; ++j) {
+          double val = out(i, j);
+          if (!Rcpp::NumericVector::is_na(val)) out(i, j) = val / sc;
+        }
+      }
+    }
+    return out;
+  }
+  
+  if (scale == "i") {
+    std::vector<double> vals;
+    vals.reserve(nr * nc);
+    for (int i = 0; i < nr; ++i) {
+      for (int j = 0; j < nc; ++j) {
+        double val = mat(i, j);
+        if (!Rcpp::NumericVector::is_na(val)) vals.push_back(val);
+      }
+    }
+    if (vals.empty()) return out;
+    
+    double q1 = NA_REAL, q3 = NA_REAL;
+    median_halves_q1q3(vals, q1, q3);
+    if (Rcpp::NumericVector::is_na(q1) || Rcpp::NumericVector::is_na(q3)) return out;
+    
+    double iq = q3 - q1;
+    if (iq > 0 && R_finite(iq)) {
+      double scale_factor = 1.35 / iq;
+      for (int i = 0; i < nr; ++i) {
+        for (int j = 0; j < nc; ++j) {
+          double val = out(i, j);
+          if (!Rcpp::NumericVector::is_na(val)) out(i, j) = val * scale_factor;
+        }
+      }
+    }
+    return out;
+  }
+  
+  return out;
+}
+
+// =======================
+// MAD (constant = 1, na.rm=TRUE)
+// =======================
+double mad_cpp(Rcpp::NumericVector x) {
+  std::vector<double> vals;
+  int n = x.size();
+  vals.reserve(n);
+  
+  for (int i = 0; i < n; ++i) {
+    if (!Rcpp::NumericVector::is_na(x[i]))
+      vals.push_back(x[i]);
+  }
+  
+  if (vals.empty()) return NA_REAL;
+  
+  double med = median_vec(vals);
+  
+  std::vector<double> dev;
+  dev.reserve(vals.size());
+  for (double v : vals)
+    dev.push_back(std::fabs(v - med));
+  
+  double mad = median_vec(dev);
+  return mad;
+}
+
+// =======================
+// Tukey scalar
+// =======================
+inline double tukey_scalar(double u, double c) {
+  double v = std::fabs(u);
+  double c2_over6 = (c * c) / 6.0;
+  
+  if (v <= c) {
+    double w = v / c;
+    double tmp = 1.0 - w * w;
+    return c2_over6 * (1.0 - tmp * tmp * tmp);
+  } else {
+    return c2_over6;
+  }
+}
+
+// =======================
+// median-halves IQR
+// =======================
+double iqr_median_halves(std::vector<double> vals) {
+  int n = vals.size();
+  if (n < 2) return NA_REAL;
+  
+  std::sort(vals.begin(), vals.end());
+  
+  int half = n / 2;
+  std::vector<double> lower, upper;
+  
+  if (n % 2 == 0) {
+    lower.assign(vals.begin(), vals.begin() + half);
+    upper.assign(vals.begin() + half, vals.end());
+  } else {
+    lower.assign(vals.begin(), vals.begin() + half);
+    upper.assign(vals.begin() + half + 1, vals.end());
+  }
+  
+  if (lower.empty() || upper.empty()) return NA_REAL;
+  
+  double q1 = median_vec(lower);
+  double q3 = median_vec(upper);
+  
+  return q3 - q1;
+}
+
+// =======================
+// MAIN FUNCTION
+// =======================
+// [[Rcpp::export]]
+Rcpp::NumericVector compute_dttp_cpp(
+    Rcpp::NumericMatrix Y,
+    Rcpp::IntegerVector cont_feat,
+    bool tukey = true,
+    std::string scale = "m",
+    double c_tukey = 4.685
+) {
+  
+  int TT = Y.nrow();
+  int P_cont = cont_feat.size();
+  
+  // output: TT x TT x P_cont
+  Rcpp::NumericVector out(TT * TT * P_cont);
+  out.attr("dim") = Rcpp::IntegerVector::create(TT, TT, P_cont);
+  
+  for (int p_idx = 0; p_idx < P_cont; ++p_idx) {
+    
+    int p = cont_feat[p_idx] - 1; // R -> C index
+    Rcpp::NumericVector x = Y(_, p);
+    
+    double sc_mad = mad_cpp(x);
+    if (!R_finite(sc_mad) || sc_mad <= 0)
+      sc_mad = 1.0;
+    
+    // compute TT x TT slice
+    for (int i = 0; i < TT; ++i) {
+      for (int j = 0; j < TT; ++j) {
+        
+        double xi = x[i];
+        double xj = x[j];
+        
+        double val;
+        
+        if (Rcpp::NumericVector::is_na(xi) ||
+            Rcpp::NumericVector::is_na(xj)) {
+          val = NA_REAL;
+        } else {
+          val = std::fabs(xi - xj) / sc_mad;
+          if (tukey)
+            val = tukey_scalar(val, c_tukey);
+        }
+        
+        out[i + TT * j + TT * TT * p_idx] = val;
+      }
+    }
+    
+    // ===== scaling step per slice =====
+    if (scale == "m") {
+      
+      double minv = R_PosInf;
+      double maxv = R_NegInf;
+      
+      for (int i = 0; i < TT; ++i)
+        for (int j = 0; j < TT; ++j) {
+          double v = out[i + TT * j + TT * TT * p_idx];
+          if (!Rcpp::NumericVector::is_na(v)) {
+            if (v < minv) minv = v;
+            if (v > maxv) maxv = v;
+          }
+        }
+        
+        double sc = maxv - minv;
+      
+      if (sc > 0 && R_finite(sc)) {
+        for (int i = 0; i < TT; ++i)
+          for (int j = 0; j < TT; ++j) {
+            double &v = out[i + TT * j + TT * TT * p_idx];
+            if (!Rcpp::NumericVector::is_na(v))
+              v /= sc;
+          }
+      }
+      
+    } else if (scale == "i") {
+      
+      std::vector<double> vals;
+      vals.reserve(TT * TT);
+      
+      for (int i = 0; i < TT; ++i)
+        for (int j = 0; j < TT; ++j) {
+          double v = out[i + TT * j + TT * TT * p_idx];
+          if (!Rcpp::NumericVector::is_na(v))
+            vals.push_back(v);
+        }
+        
+        double iq = iqr_median_halves(vals);
+      
+      if (iq > 0 && R_finite(iq)) {
+        double sf = 1.35 / iq;
+        
+        for (int i = 0; i < TT; ++i)
+          for (int j = 0; j < TT; ++j) {
+            double &v = out[i + TT * j + TT * TT * p_idx];
+            if (!Rcpp::NumericVector::is_na(v))
+              v *= sf;
+          }
+      }
+    }
+  }
+  
+  return out;
+}
+
+
+
+
+
