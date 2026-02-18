@@ -36,8 +36,8 @@ data_input=data_input[complete.cases(data_input),]
 
 source("Utils_feat_weight_robust.R")
 
-zeta0=.2
-lambda=.3
+zeta0=.15
+lambda=.5
 K=3
 
 fit_kmb <- feat_weight_jump(
@@ -47,7 +47,7 @@ fit_kmb <- feat_weight_jump(
   K = K,
   tol = NULL,
   n_init = 1,
-  n_outer = 25,
+  n_outer = 30,
   n_inner=10,
   alpha = 0.1,
   verbose = T,
