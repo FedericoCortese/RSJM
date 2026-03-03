@@ -12,10 +12,8 @@ euro_countries <- c(
   "Portugal",
   "Spain"
 )
-#library(readxl)
-#dat_all=read_xlsx("ALLin1K.xlsx")
 
-load("~/Downloads/gmd.RData")
+load("gmd.RData")
 
 names(dati)
 str(dati)
@@ -26,23 +24,19 @@ cor(dati[,1:5])
 
 dati_euro <- dati[dati$countryname %in% euro_countries, ]
 
-# indicatori da plottare
 vars <- c("cons_GDP","inv_GDP","finv_GDP","exports_GDP","imports_GDP")
 
-# paesi (colonne/linee)
 countries <- sort(unique(dati_euro$countryname))
 
 x11()
 par(mfrow = c(3,2), mar = c(4,4,2,1))
-
 for (v in vars) {
-  # wide: righe=year, colonne=paesi
   wide <- xtabs(as.formula(paste(v, "~ year + countryname")), data = dati_euro)
   years <- as.numeric(rownames(wide))
   
   matplot(years, wide,
           type = "l",
-          lty  = 1,
+          lty  = 1:ncol(wide),
           xlab = "Year",
           ylab = v,
           main = v,
@@ -50,71 +44,22 @@ for (v in vars) {
 }
 
 plot.new()
-legend("center", legend = countries, col = 1:length(countries), lty = 1, cex = 0.8, ncol = 2)
+legend("center", legend = countries, 
+       col = 1:length(countries), lty = 1:ncol(wide), cex = 0.8, ncol = 2)
+
+#
 
 dati_euro_wide <- dati_euro %>%
   pivot_wider(names_from = countryname,
               values_from = -c(countryname, year)) %>%
   arrange(year)
 
-# dati_euro_wide$cross_corr=apply(dati_euro_wide[, -1], 1, sd)
-
-# # Volatility
-# dati_euro_vol5 <- dati_euro %>%
-#   arrange(countryname, year) %>%
-#   group_by(countryname) %>%
-#   mutate(across(all_of(vars),
-#                 ~ rollapplyr(.x, width = 5, FUN = sd, fill = NA, align = "right", na.rm = TRUE),
-#                 .names = "vol5_{.col}")) %>%
-#   ungroup()
-# 
-# # 
-# dati_euro_vol5_only <- dplyr::select(
-#   dati_euro_vol5,
-#   countryname,
-#   year,
-#   dplyr::starts_with("vol5_")
-# )
-# 
-# vars_vol <- c("vol5_cons_GDP",
-#               "vol5_inv_GDP",
-#               "vol5_finv_GDP",
-#               "vol5_exports_GDP",
-#               "vol5_imports_GDP")
-# 
-# x11()
-# par(mfrow = c(3,2), mar = c(4,4,2,1))
-# 
-# for (v in vars_vol) {
-#   
-#   wide <- xtabs(as.formula(paste(v, "~ year + countryname")),
-#                 data = dati_euro_vol5)
-#   
-#   years <- as.numeric(rownames(wide))
-#   
-#   matplot(years, wide,
-#           type = "l",
-#           lty  = 1,
-#           col  = 1:ncol(wide),
-#           xlab = "Year",
-#           ylab = v,
-#           main = v)
-# }
-# 
-# plot.new()
-# legend("center",
-#        legend = countries,
-#        col = 1:length(countries),
-#        lty = 1,
-#        cex = 0.8,
-#        ncol = 2)
-
-
 # fit ---------------------------------------------------------------------
 
 
 
 Y_input=dati_euro_wide[,-1]
+dim(Y_input)  # 49x60
 
 source("Utils_feat_weight_robust.R")
 Y_input <- as.data.frame(Y_input)
@@ -138,7 +83,7 @@ years <- res_fit$year
 
 state_cols <- c("magenta", "cyan", "orange")
 
-# helper: pannello per indicatore (tutti i paesi)
+# helper
 plot_panel <- function(prefix, main_title = prefix) {
   cols <- grep(paste0("^", prefix, "_"), names(res_fit), value = TRUE)
   if (length(cols) == 0) stop("No columns for: ", prefix)
@@ -150,8 +95,6 @@ plot_panel <- function(prefix, main_title = prefix) {
        xlab = "Year", ylab = prefix, main = main_title)
   
   s <- as.integer(res_fit$s)
-  
-  # disegno linee grigie per ogni paese
   for (k in seq_len(ncol(mat))) {
     y <- mat[, k]
     lines(years, y, col = "grey80", lwd = 1)
@@ -168,14 +111,6 @@ plot_panel("inv_GDP",     "inv_GDP (all countries)")
 plot_panel("finv_GDP",    "finv_GDP (all countries)")
 plot_panel("exports_GDP", "exports_GDP (all countries)")
 plot_panel("imports_GDP", "imports_GDP (all countries)")
-
-# s <- as.integer(res_fit$s)
-# plot(years, res_fit$cross_corr,
-#      type = "l",
-#      col  = adjustcolor(state_cols[s], alpha.f = 0.35),
-#      xlab = "Year", ylab = "cross_corr",
-#      main = "cross_corr")
-# points(years, res_fit$cross_corr, pch = 16, col = state_cols[s], cex = 0.7)
 plot.new()
 legend("topright", legend = c("s=1","s=2","s=3"), col = state_cols, pch = 16, bty = "n")
 
@@ -188,7 +123,7 @@ indicator <- vapply(split_parts, function(x) paste(x[1:2], collapse = "_"), char
 
 country <- vapply(split_parts, function(x) paste(x[-c(1,2)], collapse = "_"), character(1))
 ind_levels <- c("cons_GDP","inv_GDP","finv_GDP","exports_GDP","imports_GDP")
-cty_levels <- sort(unique(country))  # 12 paesi nel tuo caso
+cty_levels <- sort(unique(country))  # 12 paesi
 
 make_grid <- function(state_k) {
   M <- matrix(NA_real_, nrow = length(ind_levels), ncol = length(cty_levels),
@@ -202,7 +137,7 @@ make_grid <- function(state_k) {
 grid_list <- lapply(1:3, make_grid)
 
 plot_weight_grid <- function(M, main, digits = 3) {
-  # image vuole righe dal basso: ribalto per avere cons_GDP in alto ecc.
+  
   Mr <- M[nrow(M):1, , drop = FALSE]
   
   image(x = seq_len(ncol(Mr)), y = seq_len(nrow(Mr)), z = t(Mr),
@@ -231,11 +166,4 @@ for (k in 1:3) {
   mtext("Indicator × Country", side = 3, line = 0.2, cex = 0.8, col = state_cols[k])
 }
 
-# Plot separato: cross_corr per stato
-x11()
-par(mar = c(4,4,3,1))
-barplot(est_W[, "cross_corr"],
-        col = state_cols,
-        names.arg = c("s=1","s=2","s=3"),
-        ylab = "Weight",
-        main = "cross_corr weight by state")
+
