@@ -202,7 +202,7 @@ compute_feat <- function(x,
   return(x[ , matched_cols])
 }
 
-circular_moving_average <- function(theta, k = 13) {
+circular_moving_average <- function(theta, k = 5) {
   if (k %% 2 == 0) stop("k deve essere dispari per finestra centrata.")
   
   library(zoo)
@@ -221,7 +221,7 @@ circular_moving_average <- function(theta, k = 13) {
   ))
 }
 
-circular_moving_variance <- function(theta, k = 13, na.rm = FALSE) {
+circular_moving_variance <- function(theta, k = 5, na.rm = FALSE) {
   if (k %% 2 == 0) stop("k deve essere dispari per finestra centrata.")
   if (!is.numeric(theta)) stop("theta deve essere un vettore numerico (radianti).")
   if (length(theta) < k) stop("La serie theta è più corta della finestra k.")

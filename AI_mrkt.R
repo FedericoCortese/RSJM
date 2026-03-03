@@ -1,32 +1,36 @@
 #
 # Data downloading and cleaning -------------------------------------------
 
-## 0. Pacchetti
 library(quantmod)   # dati da Yahoo Finance
-library(TTR)        # runSD per la volatilità rolling
+library(TTR)        # runMean / runSD per rolling stats
 library(xts)
 library(dplyr)
 library(lubridate)
-library(gtrendsR)   # Google Trends per sentiment
-library(zoo) 
-## 1. Parametri generali
+library(zoo)
 
-# Circa 2000 giorni lavorativi indietro da oggi ≈ aprile 2018
-start_date <- as.Date("2018-04-18")
+start_date <- as.Date("2023-01-01") # Ossia da quando ChatGPT è esplosa, approx
 end_date   <- Sys.Date()
 
-vol_window <- 5L  # finestra per la volatilità rolling
+vol_window <- 5L  # ampiezza finestra rolling (es. 5 giorni)
 
-# Tickers
-ai_core      <- c("NVDA","AMD","TSM","ASML","SMCI")           # 5
-ai_platform  <- c("MSFT","GOOGL","META","AAPL")               # 4
-supply_chain <- c("MU","EQIX")                                # 2
+# --- Tickers (con descrizione azienda) ---------------------------------------
+# NVDA = NVIDIA 
+# AMD  = Advanced Micro Devices, Inc. (CPU/GPU)
+# TSM  = Taiwan Semiconductor Manufacturing Company (TSMC) 
+# ASML = ASML Holding N.V. 
+# SMCI = Super Micro Computer, Inc. 
+# MSFT = Microsoft 
+# GOOGL= Alphabet 
+# META = Meta 
+# AAPL = Apple 
+# MU   = Micron Technology, Inc. (memorie DRAM/NAND)
+# EQIX = Equinix, Inc. (data center / digital infrastructure) 
 
-ai_assets    <- c(ai_core, ai_platform, supply_chain)         # 11 in totale
+ai_core      <- c("NVDA","AMD","TSM","ASML","SMCI")   # 5
+ai_platform  <- c("MSFT","GOOGL","META","AAPL")       # 4
+supply_chain <- c("MU","EQIX")                        # 2
 
-mkt_symbol   <- "^NDX"    # indice di mercato per AIglob excess (Nasdaq 100)
-
-## 2. Funzione helper per scaricare prezzi (Adjusted Close)
+ai_assets    <- c(ai_core, ai_platform, supply_chain) # 11
 
 get_adj_prices <- function(symbols, from, to) {
   out_list <- lapply(symbols, function(sym) {
@@ -37,7 +41,7 @@ get_adj_prices <- function(symbols, from, to) {
       to          = to,
       auto.assign = FALSE
     )
-    Ad(ohlc)
+    Ad(ohlc)  # Adjusted close
   })
   names(out_list) <- symbols
   prices_xts <- do.call(merge, out_list)
@@ -45,122 +49,51 @@ get_adj_prices <- function(symbols, from, to) {
   prices_xts
 }
 
-## 3. Scarico prezzi AI e mercato
+prices_ai   <- get_adj_prices(ai_assets, start_date, end_date)
 
-# Prezzi per gli 11 asset AI
-prices_ai  <- get_adj_prices(ai_assets, start_date, end_date)
+# Log-rendimenti
+returns_all <- na.omit(diff(log(prices_ai)))
 
-# Prezzi per l'indice di mercato (Nasdaq 100)
-mkt_ohlc   <- getSymbols(
-  Symbols     = mkt_symbol,
-  src         = "yahoo",
-  from        = start_date,
-  to          = end_date,
-  auto.assign = FALSE
-)
-prices_mkt <- Ad(mkt_ohlc)
-colnames(prices_mkt) <- "Mkt"
-
-## 4. Log-rendimenti
-
-# Merge ai + mercato su base comune prima di differenziare
-prices_all <- merge(prices_ai, prices_mkt, join = "inner")
-
-returns_all <- na.omit(diff(log(prices_all)))
-
-# Split AI asset vs mercato
-returns_ai  <- returns_all[, ai_assets]
-returns_mkt <- returns_all[, "Mkt", drop = FALSE]
-
-## 5. Volatilità rolling per ciascun asset AI (con rollapplyr) ----
-
-vol_ai <- returns_ai  # stessa struttura (date + colonne), poi sovrascriviamo
-
-for (sym in ai_assets) {
-  vol_ai[, sym] <- rollapplyr(
-    data   = returns_ai[, sym],
-    width  = vol_window,
-    FUN    = sd,
-    fill   = NA,
-    na.rm  = TRUE
-  )
-}
-
-# Allineo per sicurezza
-vol_ai <- vol_ai[index(returns_ai)]
-
-## 6. AI globale e excess return
-
-# AI globale equal-weighted sui 11 asset
-r_AIglob <- xts(
-  rowMeans(returns_ai, na.rm = TRUE),
-  order.by = index(returns_ai)
-)
-colnames(r_AIglob) <- "AIglob"
-
-# Mercato allineato
-returns_mkt_aligned <- returns_mkt[index(returns_ai)]
-
-# Excess return AIglob - Mkt
-r_excess_AIglob <- r_AIglob - returns_mkt_aligned
-colnames(r_excess_AIglob) <- "AIglob_Mkt_excess"
-
-# Volatilità rolling dell'excess
-vol_excess_AIglob <- runSD(r_excess_AIglob, n = vol_window, sample = TRUE)
-colnames(vol_excess_AIglob) <- "AIglob_Mkt_excess_vol"
-
-
-## 7. Sentiment AI con gtrendsR ----
-
-
-# NA
-
-
-## 8. Costruzione del dataset di feature
-
-# Base temporale comune: giorni in cui abbiamo returns_ai
-common_index <- index(returns_ai)
-
-returns_ai_aligned         <- returns_ai[common_index]
-vol_ai_aligned             <- vol_ai[common_index]
-r_excess_AIglob_aligned    <- r_excess_AIglob[common_index]
-vol_excess_AIglob_aligned  <- vol_excess_AIglob[common_index]
-
-# Rinomino colonne di returns/vol per chiarezza (r_<TICKER>, vol_<TICKER>)
-colnames(returns_ai_aligned) <- paste0("r_", colnames(returns_ai_aligned))
-colnames(vol_ai_aligned)     <- paste0("vol_", colnames(vol_ai_aligned))
-
-# Combino tutte le feature:
-# - 11 log-rendimenti asset  (r_*)
-# - 11 volatilitá asset      (vol_*)
-# - 1 log-rend AIglob excess (AIglob_Mkt_excess)
-# - 1 vol AIglob excess      (AIglob_Mkt_excess_vol)
-
-features_xts <- merge(
-  returns_ai_aligned,
-  vol_ai_aligned,
-  r_excess_AIglob_aligned,
-  vol_excess_AIglob_aligned,
-  join = "inner"
+# MA
+ret_ma <- rollapply(
+  data      = returns_all,
+  width     = vol_window,
+  FUN       = function(x) colMeans(x, na.rm = TRUE),
+  by.column = FALSE,
+  align     = "right",
+  fill      = NA
 )
 
-# Rimuovo righe con NA dovuti alla finestra della volatilità
-features_xts <- na.omit(features_xts)
+# Moving sd
+ret_sd <- rollapply(
+  data      = returns_all,
+  width     = vol_window,
+  FUN       = function(x) apply(x, 2, sd, na.rm = TRUE),
+  by.column = FALSE,
+  align     = "right",
+  fill      = NA
+)
 
-## 9. Check finale
 
-print(head(features_xts))
-print(dim(features_xts))
-print(colnames(features_xts))
+colnames(ret_ma) <- paste0(colnames(ret_ma), "_ma", vol_window)
+colnames(ret_sd) <- paste0(colnames(ret_sd), "_sd", vol_window)
 
-save(features_xts, file = "features_ai_dataset.RData")
+rolling_stats <- merge(ret_ma, ret_sd)
 
+features_ai_dataset=na.omit(rolling_stats)
+dim(features_ai_dataset)
 
-# Data loading and description --------------------------------------------
+matplot(features_ai_dataset[,1:11], type='l')
+
+matplot(features_ai_dataset[,12:22], type='l')
+
+returns_all=returns_all[-(1:(vol_window-1)),]
+
+save(features_ai_dataset,returns_all, file = "features_ai_dataset.RData")
+
+# --------------------------------------------
 
 load("features_ai_dataset.RData")
-
-## 0. Preliminaries
 
 library(xts)
 library(zoo)
@@ -171,36 +104,9 @@ library(tidyr)
 library(gridExtra)
 library(grid)
 
-# Rename object if needed
-df <- features_xts   # ensure consistent naming
+df_df=data.frame(date=index(features_ai_dataset), coredata(features_ai_dataset))
 
-# Convert to data.frame while preserving dates
-df_df <- data.frame(date = index(df), coredata(df))
-
-## 1. Summary Statistics
-
-summary_stats <- df_df %>%
-  dplyr::select(-date) %>%
-  summarise(
-    across(
-      everything(),
-      list(
-        mean  = ~ mean(.x, na.rm = TRUE),
-        sd    = ~ sd(.x, na.rm = TRUE),
-        min   = ~ min(.x, na.rm = TRUE),
-        q25   = ~ quantile(.x, 0.25, na.rm = TRUE),
-        median= ~ median(.x, na.rm = TRUE),
-        q75   = ~ quantile(.x, 0.75, na.rm = TRUE),
-        max   = ~ max(.x, na.rm = TRUE)
-      )
-    )
-  )
-
-print("Summary statistics:")
-print(t(summary_stats))
-
-
-## 2. Correlation Matrix + Corrplot
+apply(df_df[,-1],2,mean)
 
 cor_mat <- cor(df_df[,2:12], use = "pairwise.complete.obs")
 
@@ -217,11 +123,10 @@ corrplot(
 
 ## 3. Time Series Plots (6 × 4 grid)
 
-cols <- colnames(df_df)[-1]   # all feature names
+cols <- colnames(df_df)[-1]   
 n    <- length(cols)
 
-# If >24 features, truncate or adjust; if <24, fill empty panels
-target_panels <- 24
+target_panels <- 22
 
 if (n < target_panels) {
   cols <- c(cols, rep(NA, target_panels - n))
@@ -258,81 +163,42 @@ grid.arrange(grobs = plot_list, ncol = 4, nrow = 6)
 
 Y <- scale(df_df %>% dplyr::select(-date))
 
-print("Scaled matrix Y created:")
-print(dim(Y))
-print(colnames(Y))
-class(Y)
+
+# Fit FWJM ----------------------------------------------------------------
+
+source("Utils_feat_weight_robust.R")
 
 
-# Fit RSJM ----------------------------------------------------------------
+zeta0=.1
+lambda=.5
+K=2
 
-source("Utils_sparse_robust_2.R")
-
-zeta0=.15
-lambda=1
-K=3
-qt=99
-
-fit <- robust_sparse_jump(
+fit_ai <- feat_weight_jump(
   Y = Y,
   zeta0 = zeta0,
   lambda = lambda,
   K = K,
-  tol = 1e-2,
+  tol = NULL,
   n_init = 1,
-  n_outer = 100,
-  n_inner=5,
+  n_outer = 30,
+  n_inner=10,
   alpha = 0.1,
   verbose = T,
-  knn = 10,
-  qt=qt,
-  c = NULL,
-  M = NULL,
-  hd=F,
-  n_hd=500,
-  outlier=F,
-  mif=1
-)
+  mif=1)
 
-plot(fit$loss_vec$loss,type='l')
+plot(fit_ai$s,type='l')
 
-estW=round(fit$W,2)
-colnames(estW)=colnames(Y)
-estW
+plot(fit_ai$loss_vec$loss)
 
-df_df$State=fit$s
+est_W=fit_ai$W
+colnames(est_W)=colnames(Y)
+round(est_W,3)
 
-plot_list <- list()
+res_ai=data.frame(date=df_df$date,returns_all, cluster=fit_ai$s)
 
-for (i in seq_along(cols)) {
-  if (is.na(cols[i])) {
-    # empty plot
-    p <- ggplot() + theme_void()
-  } else {
-    p <- ggplot(df_df, aes(x = date, y = .data[[cols[i]]], color = factor(State))) +
-      geom_point(size = 0.6) +
-      scale_color_manual(
-        values = c(
-          "1" = "red",
-          "2" = "yellow",
-          "3" = "green"
-        )
-      ) +
-      ggtitle(cols[i]) +
-      theme_minimal(base_size = 10) +
-      theme(
-        plot.title = element_text(size = 8),
-        axis.title.x = element_blank(),
-        axis.title.y = element_blank(),
-        legend.position = "none"   # opzionale: nasconde la legenda
-      )
-  }
-  plot_list[[i]] <- p
-}
+tapply(res_ai$NVDA, res_ai$cluster, mean)*100
+tapply(res_ai$NVDA, res_ai$cluster, sd)*100
 
+tapply(res_ai$META, res_ai$cluster, mean)*100
+tapply(res_ai$META, res_ai$cluster, sd)*100
 
-x11()
-grid.arrange(grobs = plot_list, ncol = 4, nrow = 6)
-
-round(tapply(df_df$r_NVDA,df_df$State,mean)*100,2)
-round(tapply(df_df$r_NVDA,df_df$State,sd)*100,2)

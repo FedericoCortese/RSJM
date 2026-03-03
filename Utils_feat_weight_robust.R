@@ -569,9 +569,8 @@ feat_weight_jump <- function(Y,
   TT <- nrow(Y)
   
   start <- Sys.time()
-  Y     <- scale(Y)
   
-  feat_type=apply(Y,2,class)
+  feat_type <- sapply(Y, class)
   cont_feat=which(feat_type=="numeric"|feat_type=="integer")
   P_cont=length(cont_feat)
   cat_ord_feat=which(feat_type=="factor"|feat_type=="ordinal")
@@ -593,8 +592,16 @@ feat_weight_jump <- function(Y,
                            zeta = zeta0)
     
     # s <- sample(1:K, TT, replace = TRUE)
+    Y2 <- data.frame(lapply(Y, function(x) if (is.character(x)) factor(x) else x))
+    Ymat <- data.matrix(Y2)
+    cls <- vapply(Y, function(x) class(x)[1], character(1))
+    
+    feat_type_int <- ifelse(cls %in% c("numeric","integer"), 0,
+                            ifelse(cls %in% c("factor","ordered","character","logical"), 1, 0))
+    feat_type_int <- as.integer(feat_type_int)
+    s <- initialize_states(Ymat, K, scale=scale, feat_type=feat_type_int)
 
-    s <- initialize_states(Y, K,scale=scale)
+    #s <- initialize_states(Y, K,scale=scale,feat_type=feat_type)
     
     converged <- FALSE   # flag per fermare anche il ciclo esterno
     
@@ -641,7 +648,8 @@ feat_weight_jump <- function(Y,
         # }
         if(P_cont>0){
         dttp_cont <- compute_dttp_cpp(
-          Y,
+          Ymat,
+          #Y,
           cont_feat = as.integer(cont_feat),
           tukey = TRUE,
           scale = scale
@@ -650,10 +658,22 @@ feat_weight_jump <- function(Y,
         dttp[,,cont_feat] <- dttp_cont
         }
         
-        if(P_cat_ord>0){
-          gows=gower_dist_array(Y[,cat_ord_feat],Y[,cat_ord_feat],
-                                scale=scale)
-          dttp[,,cat_ord_feat]=gows
+        # if(P_cat_ord>0){
+        #   gows=gower_dist_array(Y[,cat_ord_feat],Y[,cat_ord_feat],
+        #                         scale=scale)
+        #   dttp[,,cat_ord_feat]=gows
+        # }
+        if (P_cat_ord > 0) {
+          
+          Y_cat_mat <- data.matrix(Y[, cat_ord_feat, drop = FALSE])
+          
+          gows <- gower_dist_array(
+            Y_cat_mat,
+            Y_cat_mat,
+            scale = scale
+          )
+          
+          dttp[,,cat_ord_feat] <- gows
         }
         
         DW=weight_inv_exp_dist_2(dttp,s,W,zeta)

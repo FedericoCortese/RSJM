@@ -35,7 +35,7 @@ simDat <- sim_data_stud_t_FWJM(seed = 123,
 
 
 truth=simDat$mchain
-Y = as.matrix(simDat$SimData)
+Y = simDat$SimData
 
 # Fit model
 fit <- feat_weight_jump(
@@ -145,7 +145,7 @@ simDat <- sim_hmm_SNR(seed = seed,
 
 truth <- simDat$truth
 
-Y = as.matrix(simDat$SimData)
+Y = simDat$SimData
 
 
 # Fit model
@@ -212,7 +212,7 @@ simDat <- sim_hmm_SNR(seed = seed,
 
 truth <- simDat$truth
 
-Y = as.matrix(simDat$SimData)
+Y = simDat$SimData
 
 # Fit model
 fit_4 <- feat_weight_jump(
@@ -226,11 +226,8 @@ fit_4 <- feat_weight_jump(
   n_inner=10,
   alpha = 0.1,
   verbose = T,
-  hd=F,
-  n_hd=NULL,
   mif=6,
-  truth=truth,
-  ncores = 3
+  truth=truth
 )
 
 
