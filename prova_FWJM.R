@@ -6,17 +6,13 @@ source("Utils_feat_weight_robust.R")
 
 P=10
 
-zeta0=.1
-lambda=.3
-
 K=3
-
 
 W=matrix(c(1,1,.5,0,0,0,0,0,0,0,
            1,0,1,1,0,0,0,0,0,0,
            .5,.5,0,.5,.5,0,0,0,0,0),byrow = T,nrow=3)
 
-TT=1000
+TT=300
 
 P=10
 outlier_frac=0.05
@@ -37,29 +33,144 @@ simDat <- sim_data_stud_t_FWJM(seed = 123,
 truth=simDat$mchain
 Y = simDat$SimData
 
+zeta0=.1
+lambda=0.1
+
 # Fit model
-fit <- feat_weight_jump(
+fit4 <- feat_weight_jump(
+  Y = Y,
+  zeta0 = zeta0,
+  lambda = lambda,
+  K = 4,
+  tol = NULL,
+  n_init = 1,
+  n_outer = 100,
+  n_inner=10,
+  alpha = 0.1,
+  verbose = T,
+  tukey=T,
+  mif=1, # mif=1 ordina gli stati in base alle mediane condizionate della feat numero 1
+  truth=truth
+)
+plot(fit4$loss_vec$loss)
+table(fit4$s,simDat$mchain)
+
+fit3 <- feat_weight_jump(
   Y = Y,
   zeta0 = zeta0,
   lambda = lambda,
   K = K,
   tol = NULL,
   n_init = 1,
-  n_outer = 25,
+  n_outer = 100,
   n_inner=10,
   alpha = 0.1,
+  tukey=T,
   verbose = T,
   mif=1, # mif=1 ordina gli stati in base alle mediane condizionate della feat numero 1
   truth=truth
 )
+plot(fit3$loss_vec$loss)
+table(fit3$s,simDat$mchain)
+
+fit2 <- feat_weight_jump(
+  Y = Y,
+  zeta0 = zeta0,
+  lambda = lambda,
+  K = 2,
+  tol = NULL,
+  n_init = 1,
+  n_outer = 100,
+  n_inner=10,
+  alpha = 0.1,
+  verbose = T,
+  tukey=T,
+  mif=1, # mif=1 ordina gli stati in base alle mediane condizionate della feat numero 1
+  truth=truth
+)
+plot(fit2$loss_vec$loss)
+
+c(fit4$loss,fit3$loss,fit2$loss)
+
+fit1 <- feat_weight_jump(
+  Y = Y,
+  zeta0 = zeta0,
+  lambda = lambda,
+  K = 1,
+  tol = NULL,
+  n_init = 1,
+  n_outer = 100,
+  n_inner=10,
+  alpha = 0.1,
+  tukey=T,
+  verbose = T,
+  mif=1, # mif=1 ordina gli stati in base alle mediane condizionate della feat numero 1
+  truth=NULL
+)
+
+plot(fit1$loss_vec$loss)
 
 
-# Results
-table(fit$s,truth)
-balanced_accuracy(fit$s,truth)
-adjustedRandIndex(fit$s,truth)
+# COSA
 
-round(fit$W,2)
+# Fit model
+fit4COSA <- feat_weight_jump(
+  Y = Y,
+  zeta0 = zeta0,
+  lambda = 0,
+  K = 4,
+  tol = NULL,
+  n_init = 1,
+  n_outer = 100,
+  n_inner=10,
+  alpha = 0.1,
+  verbose = T,
+  tukey=T,
+  mif=1, # mif=1 ordina gli stati in base alle mediane condizionate della feat numero 1
+  truth=truth
+)
+plot(fit4COSA$loss_vec$loss)
+table(fit4COSA$s,simDat$mchain)
+
+fit3COSA <- feat_weight_jump(
+  Y = Y,
+  zeta0 = zeta0,
+  lambda = 0,
+  K = K,
+  tol = NULL,
+  n_init = 1,
+  n_outer = 100,
+  n_inner=10,
+  alpha = 0.1,
+  tukey=T,
+  verbose = T,
+  mif=1, # mif=1 ordina gli stati in base alle mediane condizionate della feat numero 1
+  truth=truth
+)
+plot(fit3COSA$loss_vec$loss)
+table(fit3COSA$s,simDat$mchain)
+
+fit2COSA <- feat_weight_jump(
+  Y = Y,
+  zeta0 = zeta0,
+  lambda = 0,
+  K = 2,
+  tol = NULL,
+  n_init = 1,
+  n_outer = 100,
+  n_inner=10,
+  alpha = 0.1,
+  verbose = T,
+  tukey=T,
+  mif=1, # mif=1 ordina gli stati in base alle mediane condizionate della feat numero 1
+  truth=truth
+)
+plot(fit2COSA$loss_vec$loss)
+
+c(fit4COSA$loss,fit3COSA$loss,fit2COSA$loss)
+
+# IGNORE FROM HERE --------------------------------------------------------
+
 
 # Fit with no Tukey adj
 

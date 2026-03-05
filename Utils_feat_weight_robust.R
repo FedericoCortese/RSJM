@@ -709,9 +709,15 @@ feat_weight_jump <- function(Y,
         Spk=Spk / as.numeric(table(s))^2
         
         wcd <- exp(-Spk / zeta0)
-        W   <- wcd / rowSums(wcd)
+        if(K==1){
+          W=matrix(wcd/sum(wcd),nrow=K)
+        }
+        else{
+          W   <- wcd / rowSums(wcd)
+        }
         
-        loss <- sum(loss_by_state) +
+        
+        loss <- sum(DW) +
           zeta0 * sum(W * log(W)) +
           lambda * sum(s[-1] != s[-TT])
         
@@ -759,7 +765,7 @@ feat_weight_jump <- function(Y,
       if (verbose && !converged) {
         cat(sprintf(
           "init %2d, outer %2d → loss=%.4e, epsW=%.4e, zeta=%.3f, ARI=%.4f\n",
-          init_id, outer, epsW, epsW, zeta, ARI
+          init_id, outer, loss, epsW, zeta, ARI
         ))
         # cat(sprintf("init %2d, outer %2d → loss=%.4e, epsW=%.4e, zeta=%.3f, BAC=%.4f\n",
         #             init_id, outer, loss, epsW, zeta, BAC))
@@ -773,7 +779,8 @@ feat_weight_jump <- function(Y,
       medoids  = medoids,
       loss     = loss,
       loss_vec = loss_vec[-1, ],
-      ARI      = ARI
+      ARI      = ARI,
+      DW=DW
       # ,
       # BAC   = BAC
     )
