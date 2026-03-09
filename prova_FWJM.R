@@ -12,7 +12,7 @@ W=matrix(c(1,1,.5,0,0,0,0,0,0,0,
            1,0,1,1,0,0,0,0,0,0,
            .5,.5,0,.5,.5,0,0,0,0,0),byrow = T,nrow=3)
 
-TT=1000
+TT=500
 
 P=10
 outlier_frac=0.05
@@ -33,8 +33,8 @@ simDat <- sim_data_stud_t_FWJM(seed = 123,
 truth=simDat$mchain
 Y = simDat$SimData
 
-zeta0=.1
-lambda=0.1
+zeta0=.2
+lambda=.5
 
 # Fit model
 fit4 <- feat_weight_jump(
@@ -44,7 +44,7 @@ fit4 <- feat_weight_jump(
   K = 4,
   tol = NULL,
   n_init = 1,
-  n_outer = 100,
+  n_outer = 10,
   n_inner=10,
   alpha = 0.1,
   verbose = T,
@@ -62,7 +62,7 @@ fit3 <- feat_weight_jump(
   K = K,
   tol = NULL,
   n_init = 1,
-  n_outer = 50,
+  n_outer = 20,
   n_inner=10,
   alpha = 0.1,
   tukey=T,

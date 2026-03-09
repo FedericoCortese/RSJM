@@ -467,8 +467,6 @@ sim_data_stud_t_FWJM <- function(seed = 123,
 
 # Estimation --------------------------------------------------------------
 
-
-
 library(Rcpp)
 #Rcpp::sourceCpp("robJM.cpp")
 Rcpp::sourceCpp("FWJM.cpp")
