@@ -12,7 +12,7 @@ W=matrix(c(1,1,.5,0,0,0,0,0,0,0,
            1,0,1,1,0,0,0,0,0,0,
            .5,.5,0,.5,.5,0,0,0,0,0),byrow = T,nrow=3)
 
-TT=300
+TT=1000
 
 P=10
 outlier_frac=0.05
@@ -62,7 +62,7 @@ fit3 <- feat_weight_jump(
   K = K,
   tol = NULL,
   n_init = 1,
-  n_outer = 100,
+  n_outer = 50,
   n_inner=10,
   alpha = 0.1,
   tukey=T,
@@ -70,8 +70,10 @@ fit3 <- feat_weight_jump(
   mif=1, # mif=1 ordina gli stati in base alle mediane condizionate della feat numero 1
   truth=truth
 )
-plot(fit3$loss_vec$loss)
+plot(scale(fit3$loss_vec$loss),type='l')
+lines(scale(fit3$loss_vec$ARI),col='red')
 table(fit3$s,simDat$mchain)
+round(fit3$W,2)
 
 fit2 <- feat_weight_jump(
   Y = Y,

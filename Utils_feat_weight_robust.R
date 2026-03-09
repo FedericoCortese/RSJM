@@ -602,7 +602,7 @@ feat_weight_jump <- function(Y,
     s <- initialize_states(Ymat, K, scale=scale, feat_type=feat_type_int)
 
     #s <- initialize_states(Y, K,scale=scale,feat_type=feat_type)
-    
+    s=sample(1:K,TT,replace=T)
     converged <- FALSE   # flag per fermare anche il ciclo esterno
     
     for (outer in seq_len(n_outer)) {
@@ -716,8 +716,31 @@ feat_weight_jump <- function(Y,
           W   <- wcd / rowSums(wcd)
         }
         
+        # temp_mat=matrix(0,TT,TT)
+        # temp=0
+        # if(K>1){
+        #   for(k in 1:K){
+        #     idx_k=which(s==k)
+        #     for (p in 1:P){
+        #       temp_mat=dttp[,,p]
+        #       temp=temp+sum(temp_mat[idx_k,idx_k]*W[k,p])
+        #     }
+        #   }
+        # }
+        temp <- 0
+        if (K > 1) {
+          S <- model.matrix(~ 0 + factor(s, levels = 1:K))  # TT x K
+          for (p in 1:P) {
+            Dp <- dttp[,,p]                                  # TT x TT
+            temp <- temp + crossprod(diag(crossprod(S, Dp %*% S)), W[, p])
+          }
+          temp <- as.numeric(temp)
+        }
         
-        loss <- sum(DW) +
+        loss <- 
+          temp+zeta0*log(P)
+          #sum(DW) 
+        +
           zeta0 * sum(W * log(W)) +
           lambda * sum(s[-1] != s[-TT])
         
@@ -730,7 +753,10 @@ feat_weight_jump <- function(Y,
           
           loss_old <- loss
           
-          if (delta_loss < tol && epsW < tol) {
+          if (epsW==0
+            #delta_loss < tol && 
+              #epsW < tol
+            ) {
             converged <- TRUE
             break
           }
