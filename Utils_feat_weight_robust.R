@@ -882,6 +882,7 @@ feat_weight_jump <- function(Y,
     loss_vec = loss_vec,
     zeta0   = zeta0,
     lambda  = lambda,
+    tukey   = tukey,
     elapsed = end - start
   )
   
