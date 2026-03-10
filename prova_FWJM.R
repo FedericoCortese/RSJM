@@ -14,7 +14,7 @@ W=matrix(c(1,1,.5,0,0,0,0,0,0,0,
 
 TT=500
 
-P=10
+
 outlier_frac=0.05
 
 simDat <- sim_data_stud_t_FWJM(seed = 123,
@@ -32,28 +32,35 @@ simDat <- sim_data_stud_t_FWJM(seed = 123,
 
 truth=simDat$mchain
 Y = simDat$SimData
+summary(Y)
+x11()
+pairs(Y,col=truth,ylim=c(-3,3),xlim=c(-3,3))
 
-zeta0=.2
+plot(Y$V1,col=truth,ylim=c(-3,3))
+plot(Y$V2,col=truth,ylim=c(-3,3))
+plot(Y$V3,col=truth,ylim=c(-3,3))
+
+zeta0=.15
 lambda=.5
 
 # Fit model
-fit4 <- feat_weight_jump(
-  Y = Y,
-  zeta0 = zeta0,
-  lambda = lambda,
-  K = 4,
-  tol = NULL,
-  n_init = 1,
-  n_outer = 10,
-  n_inner=10,
-  alpha = 0.1,
-  verbose = T,
-  tukey=T,
-  mif=1, # mif=1 ordina gli stati in base alle mediane condizionate della feat numero 1
-  truth=truth
-)
-plot(fit4$loss_vec$loss)
-table(fit4$s,simDat$mchain)
+# fit4 <- feat_weight_jump(
+#   Y = Y,
+#   zeta0 = zeta0,
+#   lambda = lambda,
+#   K = 4,
+#   tol = NULL,
+#   n_init = 1,
+#   n_outer = 10,
+#   n_inner=10,
+#   alpha = 0.1,
+#   verbose = T,
+#   tukey=T,
+#   mif=1, # mif=1 ordina gli stati in base alle mediane condizionate della feat numero 1
+#   truth=truth
+# )
+# plot(fit4$loss_vec$loss)
+# table(fit4$s,simDat$mchain)
 
 fit3 <- feat_weight_jump(
   Y = Y,
@@ -65,11 +72,12 @@ fit3 <- feat_weight_jump(
   n_outer = 20,
   n_inner=10,
   alpha = 0.1,
-  tukey=T,
+  tukey=F,
   verbose = T,
   mif=1, # mif=1 ordina gli stati in base alle mediane condizionate della feat numero 1
   truth=truth
 )
+
 plot(scale(fit3$loss_vec$loss),type='l')
 lines(scale(fit3$loss_vec$ARI),col='red')
 table(fit3$s,simDat$mchain)
@@ -319,13 +327,18 @@ simDat <- sim_hmm_SNR(seed = seed,
                       mu_tilde_list = mu_tilde_list,     # list di base means
                       Sigma_tilde_list = Sigma_tilde_list,  # list di base covariance matrices
                       pers = 0.95,
-                      eps = 1e-6)
+                      eps = 1e-6,
+                      nu=30,
+                      Out_bound = 100,
+                      outlier_frac = .05)
 
 
 
 truth <- simDat$truth
 
-Y = simDat$SimData
+Y = simDat$Y
+
+pairs(Y,col=truth)
 
 # Fit model
 fit_4 <- feat_weight_jump(
