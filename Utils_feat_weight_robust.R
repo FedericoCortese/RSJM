@@ -293,8 +293,11 @@ sim_hmm_SNR <- function(seed = 123,
                         a_list = NULL,            # list di lunghezza Ktrue, ciascuno vettore length P
                         mu_tilde_list = NULL,     # list di base means
                         Sigma_tilde_list = NULL,  # list di base covariance matrices
+                        nu=3,
                         pers = 0.95,
-                        eps = 1e-6) {
+                        eps = 1e-6,
+                        outlier_frac = 0,
+                        Out_bound = 30) {
   
   set.seed(seed)
   
@@ -327,19 +330,45 @@ sim_hmm_SNR <- function(seed = 123,
   
   # Simulazione osservazioni
   Y <- matrix(NA_real_, nrow = TT, ncol = P)
-  for (k in seq_len(Ktrue)) {
-    Y_k <- mvtnorm::rmvnorm(n = TT, mean = mu_k_list[[k]], sigma = Sigma_k_list[[k]])
-    idx_k <- which(x == k)
-    if (length(idx_k) > 0) {
-      Y[idx_k, ] <- Y_k[idx_k, , drop = FALSE]
-    }
+  # for (k in seq_len(Ktrue)) {
+  #   Y_k <- mvtnorm::rmvnorm(n = TT, mean = mu_k_list[[k]], sigma = Sigma_k_list[[k]])
+  #   idx_k <- which(x == k)
+  #   if (length(idx_k) > 0) {
+  #     Y[idx_k, ] <- Y_k[idx_k, , drop = FALSE]
+  #   }
+  # }
+  for (k in 1:Ktrue) {
+    
+    u_k <- mvtnorm::rmvt(
+      n = TT,
+      sigma = Sigma_k_list[[k]],
+      df = nu,
+      delta = mu_k_list[[k]]
+    )
+    
+    idx <- which(x == k)
+    
+    if (length(idx) > 0)
+      Y[idx, ] <- u_k[idx, ]
+  }
+  
+  if (outlier_frac > 0) {
+    
+    n_out <- ceiling(TT * outlier_frac)
+    
+    idx_out <- sample(seq_len(TT), n_out)
+    
+    Y[idx_out, ] <-
+      matrix(runif(n_out * P, -Out_bound, Out_bound),
+             nrow = n_out,
+             ncol = P)
   }
   
   colnames(Y) <- paste0("y", seq_len(P))
-  SimData <- as.data.frame(Y)
+  Y <- as.data.frame(Y)
   
   return(list(
-    SimData = SimData,
+    Y = Y,
     truth = x,
     TT = TT,
     P = P,
@@ -349,8 +378,11 @@ sim_hmm_SNR <- function(seed = 123,
     Sigma_tilde_list = Sigma_tilde_list,
     mu_k_list = mu_k_list,
     Sigma_k_list = Sigma_k_list,
+    nu=nu,
     pers = pers,
-    seed = seed
+    seed = seed,
+    outlier_frac = outlier_frac,
+    Out_bound = Out_bound
   ))
 }
 
@@ -647,9 +679,8 @@ feat_weight_jump <- function(Y,
         if(P_cont>0){
         dttp_cont <- compute_dttp_cpp(
           Ymat,
-          #Y,
           cont_feat = as.integer(cont_feat),
-          tukey = TRUE,
+          tukey = tukey,
           scale = scale
         )
         
